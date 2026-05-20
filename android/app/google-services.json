@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "112761341493",
+    "project_id": "sehatsathi-70994",
+    "storage_bucket": "sehatsathi-70994.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:112761341493:android:bac8a8759e7a2adced137c",
+        "android_client_info": {
+          "package_name": "com.sehatsathi.sehat_sathi"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "112761341493-2tp0hhj4949egddv82qis6el4e1gu1h8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sehatsathi.sehat_sathi",
+            "certificate_hash": "39157a5874e5d16e2138ec035d0456e2589c7a2f"
+          }
+        },
+        {
+          "client_id": "112761341493-8fad03r2argngeuvhs1o2ieln677re6f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDfXWEo_g60BPDtejVyjyN5EVKtMTIBLOY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "112761341493-8fad03r2argngeuvhs1o2ieln677re6f.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "112761341493-ilr9uksharmqu2m052bm3q4k43aandh3.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.sehatsathi.sehatSathi"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
