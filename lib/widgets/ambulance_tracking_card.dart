@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../models/ambulance.dart';
+import '../screens/patient/ambulance_tracking_screen.dart';
 
 class AmbulanceTrackingCard extends StatefulWidget {
   final Ambulance ambulance;
@@ -192,10 +193,32 @@ class _AmbulanceTrackingCardState extends State<AmbulanceTrackingCard> with Sing
             Row(
               children: [
                 Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => AmbulanceTrackingScreen(
+                          ambulance: widget.ambulance,
+                          onCancel: widget.onCancel,
+                        ),
+                      ));
+                    },
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('Live Map'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.primary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
                   child: TextButton.icon(
                     onPressed: widget.onCancel,
                     icon: const Icon(Icons.cancel, size: 18),
-                    label: const Text('Cancel Request'),
+                    label: const Text('Cancel'),
                     style: TextButton.styleFrom(
                       foregroundColor: theme.colorScheme.error,
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -208,16 +231,14 @@ class _AmbulanceTrackingCardState extends State<AmbulanceTrackingCard> with Sing
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
-                  child: ElevatedButton.icon(
+                  child: ElevatedButton(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Calling ambulance dispatch helpline...')),
+                        const SnackBar(content: Text('Calling helpline...')),
                       );
                     },
-                    icon: const Icon(Icons.call, size: 18),
-                    label: const Text('Call Helpline'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: theme.colorScheme.error,
                       foregroundColor: Colors.white,
@@ -226,6 +247,7 @@ class _AmbulanceTrackingCardState extends State<AmbulanceTrackingCard> with Sing
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
+                    child: const Icon(Icons.call, size: 18),
                   ),
                 ),
               ],

@@ -124,9 +124,10 @@ class PatientDashboard extends StatelessWidget {
             );
           },
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () async {
-            final provider = Provider.of<PatientProvider>(context, listen: false);
+        floatingActionButton: Builder(
+          builder: (fabContext) => FloatingActionButton.extended(
+            onPressed: () async {
+              final provider = Provider.of<PatientProvider>(fabContext, listen: false);
             try {
               LocationPermission permission = await Geolocator.checkPermission();
               if (permission == LocationPermission.denied) {
@@ -166,6 +167,7 @@ class PatientDashboard extends StatelessWidget {
           backgroundColor: Theme.of(context).colorScheme.error,
           icon: const Icon(Icons.emergency, color: Colors.white),
           label: const Text('Request Ambulance', style: TextStyle(color: Colors.white)),
+        ),
         ),
       ),
     );
