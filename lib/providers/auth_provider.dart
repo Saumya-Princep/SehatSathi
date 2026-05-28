@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart' as model;
 
@@ -7,13 +8,38 @@ class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   model.UserModel? _userModel;
   bool _isLoading = false;
+  ThemeMode _themeMode = ThemeMode.light;
 
   model.UserModel? get userModel => _userModel;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _userModel != null;
+  ThemeMode get themeMode => _themeMode;
 
   AuthProvider() {
     _initAuthListener();
+    _loadTheme();
+  }
+
+  Future<void> _loadTheme() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isDark = prefs.getBool('isDarkMode') ?? false;
+      _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+      notifyListeners();
+    } catch (e) {
+      print('Error loading theme: $e');
+    }
+  }
+
+  Future<void> toggleTheme(bool isDark) async {
+    _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isDarkMode', isDark);
+    } catch (e) {
+      print('Error saving theme: $e');
+    }
   }
 
   void _initAuthListener() {

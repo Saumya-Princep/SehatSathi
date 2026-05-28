@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
 import '../models/medical_record.dart';
 import '../models/attendance.dart';
+import '../models/inventory_item.dart';
 import 'package:uuid/uuid.dart';
 
 class DoctorProvider with ChangeNotifier {
@@ -24,7 +25,11 @@ class DoctorProvider with ChangeNotifier {
     return await _firestoreService.getAllPatients();
   }
 
-  Future<void> addRecord(String patientId, String diagnosis, String notes) async {
+  Stream<List<InventoryItem>> get inventoryStream {
+    return _firestoreService.getInventory();
+  }
+
+  Future<void> addRecord(String patientId, String diagnosis, String notes, List<PrescriptionItem> prescriptions) async {
     final record = MedicalRecord(
       id: const Uuid().v4(),
       patientId: patientId,
@@ -32,6 +37,7 @@ class DoctorProvider with ChangeNotifier {
       doctorName: doctorName,
       diagnosis: diagnosis,
       notes: notes,
+      prescriptions: prescriptions,
     );
     await _firestoreService.addMedicalRecord(record);
   }

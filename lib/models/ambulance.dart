@@ -9,6 +9,7 @@ class Ambulance {
   final double latitude;
   final double longitude;
   final String assignedPhcId;
+  final String? patientId;
   final DateTime? lastUpdated;
 
   Ambulance({
@@ -18,6 +19,7 @@ class Ambulance {
     required this.latitude,
     required this.longitude,
     required this.assignedPhcId,
+    this.patientId,
     this.lastUpdated,
   });
 
@@ -32,6 +34,7 @@ class Ambulance {
       latitude: (data['latitude'] ?? 0.0).toDouble(),
       longitude: (data['longitude'] ?? 0.0).toDouble(),
       assignedPhcId: data['assignedPhcId'] ?? '',
+      patientId: data['patientId'],
       lastUpdated: data['lastUpdated'] != null ? (data['lastUpdated'] as Timestamp).toDate() : null,
     );
   }
@@ -43,6 +46,7 @@ class Ambulance {
       'latitude': latitude,
       'longitude': longitude,
       'assignedPhcId': assignedPhcId,
+      'patientId': patientId,
       'lastUpdated': lastUpdated != null ? Timestamp.fromDate(lastUpdated!) : FieldValue.serverTimestamp(),
     };
   }

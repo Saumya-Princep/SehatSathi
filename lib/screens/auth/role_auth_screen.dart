@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
+import '../../services/firestore_service.dart';
 import '../patient/patient_dashboard.dart';
 import '../doctor/doctor_dashboard.dart';
 import '../pharmacist/pharmacist_dashboard.dart';
@@ -28,10 +29,34 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
   final _regPassCtrl = TextEditingController();
   final _regExtraCtrl = TextEditingController(); // Doctor ID, Hospital Reg, etc.
 
+  String? _selectedPhcId;
+  List<Map<String, dynamic>> _phcList = [];
+  bool _isLoadingPhcs = true;
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _fetchPhcs();
+  }
+
+  Future<void> _fetchPhcs() async {
+    try {
+      final list = await FirestoreService().getAllPhcs();
+      if (mounted) {
+        setState(() {
+          _phcList = list;
+          if (_phcList.isNotEmpty) {
+            _selectedPhcId = _phcList.first['id'];
+          }
+          _isLoadingPhcs = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingPhcs = false);
+      }
+    }
   }
 
   void _navigateToDashboard() {
@@ -83,7 +108,7 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
         password: _regPassCtrl.text.trim(),
         name: _regNameCtrl.text.trim(),
         role: widget.role,
-        phcId: 'phc_1', // Default PHC for now
+        phcId: _selectedPhcId,
         doctorRegId: widget.role == UserRole.doctor ? _regExtraCtrl.text.trim() : null,
         hospitalRegNo: widget.role == UserRole.admin ? _regExtraCtrl.text.trim() : null,
         pharmacistRegNo: widget.role == UserRole.pharmacist ? _regExtraCtrl.text.trim() : null,
@@ -208,6 +233,29 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
                 CustomTextField(label: 'Email', controller: _regEmailCtrl, prefixIcon: Icons.email, keyboardType: TextInputType.emailAddress),
                 const SizedBox(height: 16),
                 CustomTextField(label: 'Password', controller: _regPassCtrl, prefixIcon: Icons.lock, obscureText: true),
+                const SizedBox(height: 16),
+                _isLoadingPhcs
+                    ? const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      )
+                    : DropdownButtonFormField<String>(
+                        value: _selectedPhcId,
+                        decoration: const InputDecoration(
+                          labelText: 'Assigned PHC / Clinic',
+                          prefixIcon: Icon(Icons.local_hospital),
+                        ),
+                        isExpanded: true,
+                        items: _phcList.map((phc) {
+                          return DropdownMenuItem<String>(
+                            value: phc['id'],
+                            child: Text(phc['name']),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedPhcId = val);
+                        },
+                      ),
                 if (widget.role != UserRole.patient) ...[
                   const SizedBox(height: 16),
                   CustomTextField(
