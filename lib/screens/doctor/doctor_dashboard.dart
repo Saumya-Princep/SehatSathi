@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/doctor_provider.dart';
 import '../../models/medical_record.dart';
+import '../../models/inventory_item.dart';
 import '../../widgets/record_card.dart';
 import '../auth/login_screen.dart';
 
@@ -36,6 +37,15 @@ class _DoctorDashboardView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Doctor Dashboard'),
         actions: [
+          Consumer<AuthProvider>(
+            builder: (context, auth, _) {
+              final isDark = auth.themeMode == ThemeMode.dark;
+              return IconButton(
+                icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+                onPressed: () => auth.toggleTheme(!isDark),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
@@ -111,11 +121,17 @@ class _NewRecordDialogState extends State<_NewRecordDialog> {
   final _formKey = GlobalKey<FormState>();
   final _diagnosisController = TextEditingController();
   final _notesController = TextEditingController();
+  final _dosageController = TextEditingController();
+  final _qtyController = TextEditingController(text: '10');
   
   String? _selectedPatientId;
   List<Map<String, dynamic>> _patientsList = [];
   bool _isLoadingPatients = true;
   bool _isLoading = false;
+
+  // Prescriptions state
+  List<PrescriptionItem> _prescriptions = [];
+  InventoryItem? _selectedMedicine;
 
   @override
   void initState() {
@@ -137,49 +153,178 @@ class _NewRecordDialogState extends State<_NewRecordDialog> {
     }
   }
 
+  void _addPrescriptionItem() {
+    if (_selectedMedicine == null || _dosageController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Select a medicine and specify dosage.')),
+      );
+      return;
+    }
+    final qty = int.tryParse(_qtyController.text) ?? 1;
+    if (qty <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid quantity.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _prescriptions.add(
+        PrescriptionItem(
+          id: _selectedMedicine!.id,
+          name: _selectedMedicine!.name,
+          dosage: _dosageController.text.trim(),
+          quantity: qty,
+          isDispensed: false,
+        ),
+      );
+      // Reset inputs
+      _dosageController.clear();
+      _qtyController.text = '10';
+      _selectedMedicine = null;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New EHR'),
-      content: SingleChildScrollView(
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _isLoadingPatients
-                  ? const Padding(
-                      padding: EdgeInsets.all(8.0),
-                      child: CircularProgressIndicator(),
-                    )
-                  : DropdownButtonFormField<String>(
-                      value: _selectedPatientId,
-                      decoration: const InputDecoration(labelText: 'Select Patient'),
+      title: const Text('New Medical EHR'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _isLoadingPatients
+                    ? const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : DropdownButtonFormField<String>(
+                        value: _selectedPatientId,
+                        decoration: const InputDecoration(labelText: 'Select Patient'),
+                        isExpanded: true,
+                        items: _patientsList.map((p) {
+                          return DropdownMenuItem<String>(
+                            value: p['id'],
+                            child: Text(p['name']),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() => _selectedPatientId = val);
+                        },
+                        validator: (val) => val == null ? 'Please select a patient' : null,
+                      ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _diagnosisController,
+                  decoration: const InputDecoration(labelText: 'Diagnosis (e.g. Malaria, Flu)'),
+                  validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _notesController,
+                  decoration: const InputDecoration(labelText: 'Clinical Notes'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Prescribe Medications',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                
+                // Medicines Stream Dropdown
+                StreamBuilder<List<InventoryItem>>(
+                  stream: widget.provider.inventoryStream,
+                  builder: (context, snapshot) {
+                    final meds = snapshot.data ?? [];
+                    if (meds.isEmpty) {
+                      return const Text('No medicines in pharmacy inventory.', style: TextStyle(color: Colors.grey, fontSize: 12));
+                    }
+                    return DropdownButtonFormField<InventoryItem>(
+                      value: _selectedMedicine,
+                      decoration: const InputDecoration(labelText: 'Choose Medicine'),
                       isExpanded: true,
-                      items: _patientsList.map((p) {
-                        return DropdownMenuItem<String>(
-                          value: p['id'],
-                          child: Text(p['name']),
+                      items: meds.map((m) {
+                        return DropdownMenuItem<InventoryItem>(
+                          value: m,
+                          child: Text('${m.name} (In stock: ${m.currentStock})'),
                         );
                       }).toList(),
                       onChanged: (val) {
-                        setState(() => _selectedPatientId = val);
+                        setState(() => _selectedMedicine = val);
                       },
-                      validator: (val) => val == null ? 'Please select a patient' : null,
+                    );
+                  },
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _dosageController,
+                        decoration: const InputDecoration(labelText: 'Dosage (e.g., 1-0-1 after food)'),
+                      ),
                     ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _diagnosisController,
-                decoration: const InputDecoration(labelText: 'Diagnosis'),
-                validator: (val) => val == null || val.isEmpty ? 'Required' : null,
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _notesController,
-                decoration: const InputDecoration(labelText: 'Notes & Prescription'),
-                maxLines: 3,
-              ),
-            ],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _qtyController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Qty'),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: _addPrescriptionItem,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add to Prescription'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                  ),
+                ),
+                
+                // Added prescriptions list
+                if (_prescriptions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('Prescribed Meds:', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _prescriptions.length,
+                      itemBuilder: (context, index) {
+                        final p = _prescriptions[index];
+                        return ListTile(
+                          title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('${p.dosage} | Qty: ${p.quantity}'),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              setState(() {
+                                _prescriptions.removeAt(index);
+                              });
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                ]
+              ],
+            ),
           ),
         ),
       ),
@@ -199,6 +344,7 @@ class _NewRecordDialogState extends State<_NewRecordDialog> {
                         _selectedPatientId!,
                         _diagnosisController.text.trim(),
                         _notesController.text.trim(),
+                        _prescriptions,
                       );
                       if (mounted) Navigator.pop(context);
                     } catch (e) {
@@ -207,7 +353,7 @@ class _NewRecordDialogState extends State<_NewRecordDialog> {
                     }
                   }
                 },
-          child: _isLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+          child: _isLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save EHR'),
         )
       ],
     );

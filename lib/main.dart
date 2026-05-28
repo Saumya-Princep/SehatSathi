@@ -31,11 +31,17 @@ class SehatSathiApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
       ],
-      child: MaterialApp(
-        title: 'SehatSathi',
-        theme: AppTheme.lightTheme,
-        debugShowCheckedModeBanner: false,
-        home: const InitialRouteHandler(),
+      child: Consumer<AuthProvider>(
+        builder: (context, authProvider, _) {
+          return MaterialApp(
+            title: 'SehatSathi',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: authProvider.themeMode,
+            debugShowCheckedModeBanner: false,
+            home: const InitialRouteHandler(),
+          );
+        },
       ),
     );
   }

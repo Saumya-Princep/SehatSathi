@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
 import '../models/medical_record.dart';
+import '../models/ambulance.dart';
+import '../models/health_advisory.dart';
 
 class PatientProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
@@ -13,7 +15,19 @@ class PatientProvider with ChangeNotifier {
     return _firestoreService.getPatientRecords(patientId);
   }
 
+  Stream<Ambulance?> get activeAmbulanceStream {
+    return _firestoreService.getPatientActiveAmbulanceRequest(patientId);
+  }
+
+  Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
+    return _firestoreService.getHealthAdvisories();
+  }
+
   Future<void> requestEmergencyAmbulance(double lat, double lng) async {
-    await _firestoreService.dispatchEmergencyAmbulance(phcId, lat, lng);
+    await _firestoreService.dispatchEmergencyAmbulance(phcId, patientId, lat, lng);
+  }
+
+  Future<void> cancelAmbulanceRequest(String ambulanceId) async {
+    await _firestoreService.cancelEmergencyAmbulance(ambulanceId);
   }
 }

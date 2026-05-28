@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/pharmacist_provider.dart';
 import '../../models/inventory_item.dart';
+import '../../models/medical_record.dart';
 import '../auth/login_screen.dart';
 
 class PharmacistDashboard extends StatelessWidget {
@@ -12,73 +14,223 @@ class PharmacistDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => PharmacistProvider(),
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Pharmacy Inventory'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () {
-                Provider.of<AuthProvider>(context, listen: false).signOut();
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-              },
+      child: DefaultTabController(
+        length: 2,
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Pharmacy Portal'),
+            bottom: const TabBar(
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              tabs: [
+                Tab(icon: Icon(Icons.inventory), text: 'Inventory'),
+                Tab(icon: Icon(Icons.receipt_long), text: 'Prescriptions'),
+              ],
             ),
-          ],
-        ),
-        body: Consumer<PharmacistProvider>(
-          builder: (context, provider, child) {
-            return StreamBuilder<List<InventoryItem>>(
-              stream: provider.inventoryStream,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final items = snapshot.data ?? [];
-                if (items.isEmpty) {
-                  return const Center(child: Text('No inventory items found.'));
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: items.length,
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return Card(
-                      color: item.isLowStock ? Theme.of(context).colorScheme.errorContainer : null,
-                      child: ListTile(
-                        title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('Batch: ${item.batchNumber} | Threshold: ${item.thresholdLimit}'),
-                        trailing: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              '${item.currentStock}',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: item.isLowStock ? Theme.of(context).colorScheme.error : Colors.black,
-                              ),
-                            ),
-                            const Text('Stock', style: TextStyle(fontSize: 10)),
-                          ],
-                        ),
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (_) => _UpdateStockDialog(
-                              item: item,
-                              provider: provider,
-                            ),
-                          );
-                        },
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          },
+            actions: [
+              Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  final isDark = auth.themeMode == ThemeMode.dark;
+                  return IconButton(
+                    icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+                    onPressed: () => auth.toggleTheme(!isDark),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () {
+                  Provider.of<AuthProvider>(context, listen: false).signOut();
+                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                },
+              ),
+            ],
+          ),
+          body: Consumer<PharmacistProvider>(
+            builder: (context, provider, child) {
+              return TabBarView(
+                children: [
+                  _buildInventoryTab(context, provider),
+                  _buildPrescriptionsTab(context, provider),
+                ],
+              );
+            },
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _buildInventoryTab(BuildContext context, PharmacistProvider provider) {
+    return StreamBuilder<List<InventoryItem>>(
+      stream: provider.inventoryStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final items = snapshot.data ?? [];
+        if (items.isEmpty) {
+          return const Center(child: Text('No inventory items found.'));
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return Card(
+              color: item.isLowStock ? Theme.of(context).colorScheme.errorContainer : null,
+              child: ListTile(
+                title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text('Batch: ${item.batchNumber} | Threshold: ${item.thresholdLimit}'),
+                trailing: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '${item.currentStock}',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: item.isLowStock ? Theme.of(context).colorScheme.error : null,
+                      ),
+                    ),
+                    const Text('Stock', style: TextStyle(fontSize: 10)),
+                  ],
+                ),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => _UpdateStockDialog(
+                      item: item,
+                      provider: provider,
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildPrescriptionsTab(BuildContext context, PharmacistProvider provider) {
+    return StreamBuilder<List<MedicalRecord>>(
+      stream: provider.pendingPrescriptionsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final records = snapshot.data ?? [];
+        if (records.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.check_circle_outline, size: 64, color: Colors.grey),
+                SizedBox(height: 12),
+                Text('No pending prescriptions found.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+              ],
+            ),
+          );
+        }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: records.length,
+          itemBuilder: (context, index) {
+            final record = records[index];
+            final pendingMeds = record.prescriptions.where((p) => !p.isDispensed).toList();
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ExpansionTile(
+                leading: const Icon(Icons.assignment),
+                title: FutureBuilder<DocumentSnapshot>(
+                  future: FirebaseFirestore.instance.collection('users').doc(record.patientId).get(),
+                  builder: (context, userSnap) {
+                    final name = (userSnap.data?.data() as Map<String, dynamic>?)?['name'] ?? 'Patient';
+                    return Text(
+                      'Patient: $name',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    );
+                  },
+                ),
+                subtitle: Text('Diagnosis: ${record.diagnosis}\nDoc: ${record.doctorName}'),
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Prescribed Medications:',
+                          style: TextStyle(fontWeight: FontWeight.bold, decoration: TextDecoration.underline),
+                        ),
+                        const SizedBox(height: 8),
+                        ...pendingMeds.map((med) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4.0),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.medication, size: 18, color: Colors.teal),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  '${med.name} — ${med.dosage}',
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ),
+                              Text(
+                                'Qty: ${med.quantity}',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              )
+                            ],
+                          ),
+                        )).toList(),
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  final dispenseItems = pendingMeds.map((m) => {
+                                    'id': m.id,
+                                    'quantity': m.quantity,
+                                  }).toList();
+                                  
+                                  await provider.dispenseMedicines(record.id, dispenseItems);
+                                  
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(content: Text('Prescription dispensed and stock updated successfully!')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(Icons.check_circle),
+                              label: const Text('Dispense & Fulfill'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).colorScheme.primary,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        )
+                      ],
+                    ),
+                  )
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

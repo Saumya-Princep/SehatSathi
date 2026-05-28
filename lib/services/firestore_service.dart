@@ -3,9 +3,31 @@ import '../models/medical_record.dart';
 import '../models/inventory_item.dart';
 import '../models/ambulance.dart';
 import '../models/attendance.dart';
+import '../models/health_advisory.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // PHCs list for registration dropdown
+  Future<List<Map<String, dynamic>>> getAllPhcs() async {
+    final query = await _db.collection('phcs').get();
+    if (query.docs.isEmpty) {
+      // If collection is empty, create defaults to populate UI
+      final defaults = [
+        {'id': 'phc_1', 'name': 'City Primary Health Center'},
+        {'id': 'phc_2', 'name': 'Sub-District Health Center'},
+        {'id': 'phc_3', 'name': 'Rural Health Clinic'},
+      ];
+      for (var d in defaults) {
+        await _db.collection('phcs').doc(d['id']).set({'name': d['name']});
+      }
+      return defaults;
+    }
+    return query.docs.map((doc) => {
+      'id': doc.id,
+      'name': doc.data()['name'] ?? 'Unknown PHC',
+    }).toList();
+  }
 
   // Patients list for doctor dropdown
   Future<List<Map<String, dynamic>>> getAllPatients() async {
@@ -16,7 +38,7 @@ class FirestoreService {
     }).toList();
   }
 
-  // EHR
+  // EHR Records
   Stream<List<MedicalRecord>> getPatientRecords(String patientId) {
     return _db
         .collection('medical_records')
@@ -57,17 +79,89 @@ class FirestoreService {
     await _db.collection('medical_records').doc(record.id).set(record.toMap());
   }
 
-  // Inventory
+  // Structured Prescriptions & Pharmacy Dispensation
+  Stream<List<MedicalRecord>> getPendingPrescriptions() {
+    return _db
+        .collection('medical_records')
+        .snapshots()
+        .map((snapshot) {
+          final list = snapshot.docs
+              .map((doc) => MedicalRecord.fromMap(doc.data(), doc.id))
+              .where((rec) => rec.prescriptions.any((p) => !p.isDispensed))
+              .toList();
+          list.sort((a, b) {
+            final dateA = a.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+            final dateB = b.date ?? DateTime.fromMillisecondsSinceEpoch(0);
+            return dateB.compareTo(dateA);
+          });
+          return list;
+        });
+  }
+
+  Future<void> dispensePrescription(String recordId, List<Map<String, dynamic>> itemsToDispense) async {
+    final recordRef = _db.collection('medical_records').doc(recordId);
+
+    await _db.runTransaction((transaction) async {
+      final recordDoc = await transaction.get(recordRef);
+      if (!recordDoc.exists) throw Exception("Medical record not found.");
+
+      final record = MedicalRecord.fromMap(recordDoc.data()!, recordDoc.id);
+
+      // Verify and decrement stock for each medicine in inventory
+      for (var item in itemsToDispense) {
+        final String medId = item['id'];
+        final int qty = item['quantity'];
+
+        final medRef = _db.collection('inventory').doc(medId);
+        final medDoc = await transaction.get(medRef);
+
+        if (medDoc.exists) {
+          final currentStock = medDoc.data()?['currentStock']?.toInt() ?? 0;
+          if (currentStock < qty) {
+            throw Exception("Insufficient stock for ${medDoc.data()?['name'] ?? medId}. Available: $currentStock, Required: $qty");
+          }
+          transaction.update(medRef, {
+            'currentStock': currentStock - qty,
+            'lastUpdated': FieldValue.serverTimestamp(),
+          });
+        } else {
+          throw Exception("Medicine not found in inventory: $medId");
+        }
+      }
+
+      // Update the prescription item status to dispensed
+      final updatedPrescriptions = record.prescriptions.map((item) {
+        final dispenseInfo = itemsToDispense.firstWhere(
+          (element) => element['id'] == item.id,
+          orElse: () => {},
+        );
+        if (dispenseInfo.isNotEmpty) {
+          return item.copyWith(isDispensed: true);
+        }
+        return item;
+      }).toList();
+
+      // Update record prescriptions list in database
+      transaction.update(recordRef, {
+        'prescriptions': updatedPrescriptions.map((p) => p.toMap()).toList(),
+      });
+    });
+  }
+
+  // Inventory Management
   Stream<List<InventoryItem>> getInventory() {
     return _db.collection('inventory').snapshots().map((snapshot) =>
         snapshot.docs.map((doc) => InventoryItem.fromMap(doc.data(), doc.id)).toList());
   }
 
   Future<void> updateInventoryStock(String itemId, int newStock) async {
-    await _db.collection('inventory').doc(itemId).update({'currentStock': newStock, 'lastUpdated': FieldValue.serverTimestamp()});
+    await _db.collection('inventory').doc(itemId).update({
+      'currentStock': newStock,
+      'lastUpdated': FieldValue.serverTimestamp()
+    });
   }
 
-  // Attendance
+  // Attendance Shifts
   Future<void> checkIn(Attendance attendance) async {
     await _db.collection('attendance').doc(attendance.id).set(attendance.toMap());
   }
@@ -86,7 +180,7 @@ class FirestoreService {
         .map((snapshot) => snapshot.docs.map((doc) => Attendance.fromMap(doc.data(), doc.id)).toList());
   }
 
-  // Ambulance
+  // Ambulance Fleet
   Stream<List<Ambulance>> getAmbulances(String phcId) {
     return _db.collection('ambulances')
         .where('assignedPhcId', isEqualTo: phcId)
@@ -102,8 +196,55 @@ class FirestoreService {
       'lastUpdated': FieldValue.serverTimestamp(),
     });
   }
+
+  Future<void> addAmbulance(Ambulance ambulance) async {
+    await _db.collection('ambulances').doc(ambulance.id).set(ambulance.toMap());
+  }
+
+  Future<void> deleteAmbulance(String id) async {
+    await _db.collection('ambulances').doc(id).delete();
+  }
+
+  Stream<Ambulance?> getPatientActiveAmbulanceRequest(String patientId) {
+    return _db.collection('ambulances')
+        .where('patientId', isEqualTo: patientId)
+        .snapshots()
+        .map((snapshot) {
+          if (snapshot.docs.isEmpty) return null;
+          return Ambulance.fromMap(snapshot.docs.first.data(), snapshot.docs.first.id);
+        });
+  }
   
-  // Analytics
+  Future<void> dispatchEmergencyAmbulance(String phcId, String patientId, double lat, double lng) async {
+    final query = await _db.collection('ambulances')
+      .where('assignedPhcId', isEqualTo: phcId)
+      .where('status', isEqualTo: AmbulanceStatus.available.name)
+      .limit(1)
+      .get();
+      
+    if (query.docs.isNotEmpty) {
+      final docId = query.docs.first.id;
+      await _db.collection('ambulances').doc(docId).update({
+        'status': AmbulanceStatus.dispatched.name,
+        'latitude': lat,
+        'longitude': lng,
+        'patientId': patientId,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+    } else {
+      throw Exception('No available ambulance at the moment.');
+    }
+  }
+
+  Future<void> cancelEmergencyAmbulance(String ambulanceId) async {
+    await _db.collection('ambulances').doc(ambulanceId).update({
+      'status': AmbulanceStatus.available.name,
+      'patientId': null,
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Analytics & Epidemiological Outbreak Warning System
   Stream<QuerySnapshot> getRecentMedicalRecords() {
     final last48Hours = DateTime.now().subtract(const Duration(hours: 48));
     return _db.collection('medical_records')
@@ -113,27 +254,22 @@ class FirestoreService {
 
   Stream<int> getPatientsTodayCount(String phcId) {
     final today = DateTime.now();
-    final startOfDay = DateTime(today.year, today.month, today.day);
-    // Ideally, medical_records would have a phcId field. Assuming we count all today's records for now
-    // or we filter by doctor's phc. Let's just query records created today for simplicity.
+    final startOfDay = DateTime(today.year, today.day == today.day ? today.month : today.month, today.day);
     return _db.collection('medical_records')
         .where('date', isGreaterThanOrEqualTo: startOfDay)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
   }
 
-  Future<void> dispatchEmergencyAmbulance(String phcId, double lat, double lng) async {
-    final query = await _db.collection('ambulances')
-      .where('assignedPhcId', isEqualTo: phcId)
-      .where('status', isEqualTo: AmbulanceStatus.available.name)
-      .limit(1)
-      .get();
-      
-    if (query.docs.isNotEmpty) {
-      final docId = query.docs.first.id;
-      await updateAmbulanceStatus(docId, AmbulanceStatus.dispatched, lat, lng);
-    } else {
-      throw Exception('No available ambulance at the moment.');
-    }
+  // District Health Advisories
+  Stream<List<HealthAdvisory>> getHealthAdvisories() {
+    return _db.collection('advisories')
+        .orderBy('date', descending: true)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => HealthAdvisory.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Future<void> postHealthAdvisory(HealthAdvisory advisory) async {
+    await _db.collection('advisories').doc(advisory.id).set(advisory.toMap());
   }
 }
