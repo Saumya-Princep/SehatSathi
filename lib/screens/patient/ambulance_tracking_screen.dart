@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/ambulance.dart';
@@ -23,7 +22,7 @@ class AmbulanceTrackingScreen extends StatefulWidget {
 class _AmbulanceTrackingScreenState extends State<AmbulanceTrackingScreen> {
   LatLng? _patientLocation;
   late LatLng _ambulanceLocation;
-  final MapController _mapController = MapController();
+  GoogleMapController? _mapController;
   StreamSubscription<DocumentSnapshot>? _ambulanceSubscription;
   Timer? _mockDriverTimer;
 
@@ -71,15 +70,25 @@ class _AmbulanceTrackingScreenState extends State<AmbulanceTrackingScreen> {
   }
 
   void _fitBounds() {
-    if (_patientLocation != null) {
+    if (_patientLocation != null && _mapController != null) {
       if (_ambulanceLocation.latitude == _patientLocation!.latitude &&
           _ambulanceLocation.longitude == _patientLocation!.longitude) {
-        _mapController.move(_patientLocation!, 15.0);
+        _mapController!.animateCamera(CameraUpdate.newLatLngZoom(_patientLocation!, 15.0));
         return;
       }
-      final bounds = LatLngBounds.fromPoints([_ambulanceLocation, _patientLocation!]);
-      _mapController.fitCamera(
-        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(50)),
+      
+      final double minLat = _ambulanceLocation.latitude < _patientLocation!.latitude ? _ambulanceLocation.latitude : _patientLocation!.latitude;
+      final double maxLat = _ambulanceLocation.latitude > _patientLocation!.latitude ? _ambulanceLocation.latitude : _patientLocation!.latitude;
+      final double minLng = _ambulanceLocation.longitude < _patientLocation!.longitude ? _ambulanceLocation.longitude : _patientLocation!.longitude;
+      final double maxLng = _ambulanceLocation.longitude > _patientLocation!.longitude ? _ambulanceLocation.longitude : _patientLocation!.longitude;
+      
+      final bounds = LatLngBounds(
+        southwest: LatLng(minLat, minLng),
+        northeast: LatLng(maxLat, maxLng),
+      );
+      
+      _mapController!.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 50.0),
       );
     }
   }
@@ -137,53 +146,37 @@ class _AmbulanceTrackingScreenState extends State<AmbulanceTrackingScreen> {
       ),
       body: Stack(
         children: [
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: _ambulanceLocation,
-              initialZoom: 13.0,
+          GoogleMap(
+            initialCameraPosition: CameraPosition(
+              target: _ambulanceLocation,
+              zoom: 13.0,
             ),
-            children: [
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.sehat_sathi',
+            onMapCreated: (controller) {
+              _mapController = controller;
+              _fitBounds();
+            },
+            polylines: {
+              if (_patientLocation != null)
+                Polyline(
+                  polylineId: const PolylineId('route'),
+                  points: [_ambulanceLocation, _patientLocation!],
+                  color: Colors.blueAccent.withOpacity(0.5),
+                  width: 4,
+                ),
+            },
+            markers: {
+              Marker(
+                markerId: const MarkerId('ambulance'),
+                position: _ambulanceLocation,
+                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
               ),
               if (_patientLocation != null)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: [_ambulanceLocation, _patientLocation!],
-                      color: Colors.blueAccent.withOpacity(0.5),
-                      strokeWidth: 4.0,
-                    ),
-                  ],
+                Marker(
+                  markerId: const MarkerId('patient'),
+                  position: _patientLocation!,
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
                 ),
-              MarkerLayer(
-                markers: [
-                  Marker(
-                    point: _ambulanceLocation,
-                    width: 60,
-                    height: 60,
-                    child: const Icon(
-                      Icons.airport_shuttle,
-                      color: Colors.red,
-                      size: 40,
-                    ),
-                  ),
-                  if (_patientLocation != null)
-                    Marker(
-                      point: _patientLocation!,
-                      width: 40,
-                      height: 40,
-                      child: const Icon(
-                        Icons.person_pin_circle,
-                        color: Colors.blue,
-                        size: 40,
-                      ),
-                    ),
-                ],
-              ),
-            ],
+            },
           ),
           Positioned(
             bottom: 30,
