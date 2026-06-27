@@ -10,6 +10,10 @@ class PharmacistProvider with ChangeNotifier {
     return _firestoreService.getInventory();
   }
 
+  Future<void> addInventoryItem(InventoryItem item) async {
+    await _firestoreService.addInventoryItem(item);
+  }
+
   Future<void> updateStock(String itemId, int newStock) async {
     await _firestoreService.updateInventoryStock(itemId, newStock);
   }

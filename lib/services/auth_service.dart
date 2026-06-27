@@ -105,6 +105,7 @@ class AuthService {
     String? doctorRegId,
     String? hospitalRegNo,
     String? pharmacistRegNo,
+    String? specialty,
   }) async {
     try {
       final UserCredential result = await _auth.createUserWithEmailAndPassword(
@@ -120,6 +121,7 @@ class AuthService {
           doctorRegistrationId: doctorRegId,
           hospitalRegistrationNumber: hospitalRegNo,
           pharmacistRegistrationNumber: pharmacistRegNo,
+          specialty: specialty,
           createdAt: DateTime.now(),
         );
         await _firestore.collection('users').doc(result.user!.uid).set(newUser.toMap());

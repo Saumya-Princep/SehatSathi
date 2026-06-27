@@ -3,6 +3,7 @@ import '../services/firestore_service.dart';
 import '../models/medical_record.dart';
 import '../models/attendance.dart';
 import '../models/inventory_item.dart';
+import '../models/appointment.dart';
 import 'package:uuid/uuid.dart';
 
 class DoctorProvider with ChangeNotifier {
@@ -61,5 +62,17 @@ class DoctorProvider with ChangeNotifier {
       _isCheckedIn = true;
     }
     notifyListeners();
+  }
+
+  Stream<List<Appointment>> get liveAppointmentsStream {
+    return _firestoreService.getDoctorAppointments(doctorId);
+  }
+
+  Future<void> updateAppointmentStatus(String id, AppointmentStatus status) async {
+    await _firestoreService.updateAppointmentStatus(id, status);
+  }
+
+  Future<void> updateRecord(String recordId, String notes, List<PrescriptionItem> prescriptions) async {
+    await _firestoreService.updateMedicalRecord(recordId, notes, prescriptions);
   }
 }

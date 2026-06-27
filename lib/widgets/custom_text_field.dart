@@ -20,6 +20,7 @@ class CustomTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return TextField(
       controller: controller,
       obscureText: obscureText,
@@ -32,7 +33,7 @@ class CustomTextField extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: isDark ? Theme.of(context).colorScheme.surface : Colors.grey[50],
       ),
     );
   }

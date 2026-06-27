@@ -4,6 +4,7 @@ import '../models/attendance.dart';
 import '../models/ambulance.dart';
 import '../models/medical_record.dart';
 import '../models/health_advisory.dart';
+import '../models/user_model.dart';
 import 'package:uuid/uuid.dart';
 
 class AdminProvider with ChangeNotifier {
@@ -113,5 +114,14 @@ class AdminProvider with ChangeNotifier {
       date: DateTime.now(),
     );
     await _firestoreService.postHealthAdvisory(advisory);
+  }
+
+  // Doctors
+  Stream<List<UserModel>> get doctorsStream {
+    return _firestoreService.getDoctorsStream();
+  }
+
+  Future<void> toggleDoctorPresence(String uid, bool isPresent) async {
+    await _firestoreService.toggleDoctorPresence(uid, isPresent);
   }
 }
