@@ -4,6 +4,8 @@ import '../models/inventory_item.dart';
 import '../models/ambulance.dart';
 import '../models/attendance.dart';
 import '../models/health_advisory.dart';
+import '../models/appointment.dart';
+import '../models/user_model.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -36,6 +38,31 @@ class FirestoreService {
       'id': doc.id,
       'name': doc.data()['name'] ?? 'Unknown Patient',
     }).toList();
+  }
+
+  // Doctors list for patient dropdown
+  Future<List<Map<String, dynamic>>> getAllDoctors() async {
+    final query = await _db.collection('users').where('role', isEqualTo: 'doctor').get();
+    return query.docs.map((doc) => {
+      'id': doc.id,
+      'name': doc.data()['name'] ?? 'Unknown Doctor',
+    }).toList();
+  }
+
+  Future<Map<String, dynamic>?> getDoctorBySpecialty(String specialty) async {
+    final query = await _db.collection('users')
+        .where('role', isEqualTo: 'doctor')
+        .where('specialty', isEqualTo: specialty)
+        .limit(1)
+        .get();
+    
+    if (query.docs.isEmpty) {
+      // Fallback to any doctor if specialist not found
+      final fallback = await _db.collection('users').where('role', isEqualTo: 'doctor').limit(1).get();
+      if (fallback.docs.isEmpty) return null;
+      return {'id': fallback.docs.first.id, 'name': fallback.docs.first.data()['name'] ?? 'Doctor', 'specialty': fallback.docs.first.data()['specialty'] ?? 'General Physician'};
+    }
+    return {'id': query.docs.first.id, 'name': query.docs.first.data()['name'] ?? 'Doctor', 'specialty': query.docs.first.data()['specialty'] ?? specialty};
   }
 
   // EHR Records
@@ -154,10 +181,35 @@ class FirestoreService {
         snapshot.docs.map((doc) => InventoryItem.fromMap(doc.data(), doc.id)).toList());
   }
 
+  Future<void> addInventoryItem(InventoryItem item) async {
+    await _db.collection('inventory').doc(item.id).set(item.toMap());
+  }
+
   Future<void> updateInventoryStock(String itemId, int newStock) async {
     await _db.collection('inventory').doc(itemId).update({
       'currentStock': newStock,
       'lastUpdated': FieldValue.serverTimestamp()
+    });
+  }
+
+  // Users / Doctors
+  Stream<List<UserModel>> getDoctorsStream() {
+    return _db.collection('users')
+        .where('role', isEqualTo: 'doctor')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => UserModel.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Future<void> toggleDoctorPresence(String uid, bool isPresent) async {
+    await _db.collection('users').doc(uid).update({'isPresent': isPresent});
+  }
+
+  Stream<UserModel?> getDoctorStream(String uid) {
+    return _db.collection('users').doc(uid).snapshots().map((doc) {
+      if (doc.exists && doc.data() != null) {
+        return UserModel.fromMap(doc.data()!, doc.id);
+      }
+      return null;
     });
   }
 
@@ -279,5 +331,85 @@ class FirestoreService {
 
   Future<void> postHealthAdvisory(HealthAdvisory advisory) async {
     await _db.collection('advisories').doc(advisory.id).set(advisory.toMap());
+  }
+
+  // Appointments / Digital Queue
+  Stream<List<Appointment>> getDoctorAppointments(String doctorId) {
+    return _db.collection('appointments')
+        .where('doctorId', isEqualTo: doctorId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => Appointment.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Stream<List<Appointment>> getPatientActiveAppointments(String patientId) {
+    return _db.collection('appointments')
+        .where('patientId', isEqualTo: patientId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Appointment.fromMap(doc.data(), doc.id))
+            .where((apt) => apt.status != AppointmentStatus.completed)
+            .toList());
+  }
+
+  Future<List<Appointment>> getPatientActiveAppointmentsOnce(String patientId) async {
+    final query = await _db.collection('appointments')
+        .where('patientId', isEqualTo: patientId)
+        .get();
+    return query.docs
+        .map((doc) => Appointment.fromMap(doc.data(), doc.id))
+        .where((apt) => apt.status != AppointmentStatus.completed)
+        .toList();
+  }
+
+  Future<int> getDoctorQueueCount(String doctorId) async {
+    final query = await _db.collection('appointments')
+        .where('doctorId', isEqualTo: doctorId)
+        .get();
+    int count = 0;
+    for (var doc in query.docs) {
+      if (doc.data()['status'] != 'completed') {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  Future<void> requestAppointment(Appointment appointment) async {
+    await _db.collection('appointments').doc(appointment.id).set(appointment.toMap());
+  }
+
+  Future<void> cancelAppointment(String id) async {
+    await _db.collection('appointments').doc(id).delete();
+  }
+
+  Future<void> updateAppointmentStatus(String id, AppointmentStatus status) async {
+    String statusStr = status.toString().split('.').last;
+    await _db.collection('appointments').doc(id).update({
+      'status': statusStr,
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
+  }
+
+  Future<void> updateMedicalRecord(String recordId, String newNotes, List<PrescriptionItem> newPrescriptions) async {
+    final recordRef = _db.collection('medical_records').doc(recordId);
+    await _db.runTransaction((transaction) async {
+      final doc = await transaction.get(recordRef);
+      if (!doc.exists) return;
+      
+      final record = MedicalRecord.fromMap(doc.data()!, doc.id);
+      
+      final dateStr = DateTime.now().toIso8601String().substring(0, 10);
+      final updatedNotes = record.notes.trim().isEmpty 
+          ? newNotes 
+          : record.notes + '\n\n--- ' + dateStr + ' ---\n' + newNotes;
+          
+      final updatedPrescriptions = List<PrescriptionItem>.from(record.prescriptions)..addAll(newPrescriptions);
+      
+      transaction.update(recordRef, {
+        'notes': updatedNotes,
+        'prescriptions': updatedPrescriptions.map((p) => p.toMap()).toList(),
+        'date': FieldValue.serverTimestamp(),
+      });
+    });
   }
 }

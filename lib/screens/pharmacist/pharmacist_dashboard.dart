@@ -6,6 +6,7 @@ import '../../providers/pharmacist_provider.dart';
 import '../../models/inventory_item.dart';
 import '../../models/medical_record.dart';
 import '../auth/login_screen.dart';
+import 'package:uuid/uuid.dart';
 
 class PharmacistDashboard extends StatelessWidget {
   const PharmacistDashboard({Key? key}) : super(key: key);
@@ -63,16 +64,27 @@ class PharmacistDashboard extends StatelessWidget {
   }
 
   Widget _buildInventoryTab(BuildContext context, PharmacistProvider provider) {
-    return StreamBuilder<List<InventoryItem>>(
-      stream: provider.inventoryStream,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final items = snapshot.data ?? [];
-        if (items.isEmpty) {
-          return const Center(child: Text('No inventory items found.'));
-        }
+    return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (_) => _AddMedicineDialog(provider: provider),
+          );
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Add Medicine'),
+      ),
+      body: StreamBuilder<List<InventoryItem>>(
+        stream: provider.inventoryStream,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final items = snapshot.data ?? [];
+          if (items.isEmpty) {
+            return const Center(child: Text('No inventory items found.'));
+          }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: items.length,
@@ -111,8 +123,9 @@ class PharmacistDashboard extends StatelessWidget {
           },
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildPrescriptionsTab(BuildContext context, PharmacistProvider provider) {
     return StreamBuilder<List<MedicalRecord>>(
@@ -294,6 +307,72 @@ class _UpdateStockDialogState extends State<_UpdateStockDialog> {
                   }
                 },
           child: _isLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+class _AddMedicineDialog extends StatefulWidget {
+  final PharmacistProvider provider;
+  const _AddMedicineDialog({Key? key, required this.provider}) : super(key: key);
+  @override
+  _AddMedicineDialogState createState() => _AddMedicineDialogState();
+}
+
+class _AddMedicineDialogState extends State<_AddMedicineDialog> {
+  final _nameController = TextEditingController();
+  final _batchController = TextEditingController();
+  final _stockController = TextEditingController();
+  final _thresholdController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Add New Medicine'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: _nameController, decoration: const InputDecoration(labelText: 'Medicine Name')),
+            TextField(controller: _batchController, decoration: const InputDecoration(labelText: 'Batch Number')),
+            TextField(controller: _stockController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Initial Stock Quantity')),
+            TextField(controller: _thresholdController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Low Stock Threshold')),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: _isLoading ? null : () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: _isLoading ? null : () async {
+            final name = _nameController.text.trim();
+            final batch = _batchController.text.trim();
+            final stock = int.tryParse(_stockController.text) ?? 0;
+            final threshold = int.tryParse(_thresholdController.text) ?? 0;
+            
+            if (name.isNotEmpty && batch.isNotEmpty && stock >= 0) {
+              setState(() => _isLoading = true);
+              try {
+                final item = InventoryItem(
+                  id: const Uuid().v4(),
+                  name: name,
+                  batchNumber: batch,
+                  currentStock: stock,
+                  thresholdLimit: threshold,
+                  lastUpdated: DateTime.now(),
+                );
+                await widget.provider.addInventoryItem(item);
+                if (mounted) Navigator.pop(context);
+              } catch (e) {
+                setState(() => _isLoading = false);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please fill all fields correctly')));
+            }
+          },
+          child: _isLoading ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Add Item'),
         ),
       ],
     );

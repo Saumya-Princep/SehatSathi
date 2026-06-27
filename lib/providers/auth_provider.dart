@@ -104,6 +104,7 @@ class AuthProvider with ChangeNotifier {
     String? doctorRegId,
     String? hospitalRegNo,
     String? pharmacistRegNo,
+    String? specialty,
   }) async {
     _setLoading(true);
     try {
@@ -116,6 +117,7 @@ class AuthProvider with ChangeNotifier {
         doctorRegId: doctorRegId,
         hospitalRegNo: hospitalRegNo,
         pharmacistRegNo: pharmacistRegNo,
+        specialty: specialty,
       );
       _setLoading(false);
       if (_userModel == null) throw Exception('Failed to register.');

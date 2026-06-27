@@ -4,6 +4,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../models/ambulance.dart';
 import '../../models/attendance.dart';
+import '../../models/user_model.dart';
 import '../../widgets/alert_banner.dart';
 import '../auth/login_screen.dart';
 
@@ -228,7 +229,7 @@ class AdminDashboard extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Shift Shift Rosters Today',
+              'Doctor Presence Control',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             IconButton(
@@ -237,6 +238,13 @@ class AdminDashboard extends StatelessWidget {
               onPressed: () => _showBroadcastDialog(context, provider),
             ),
           ],
+        ),
+        const SizedBox(height: 8),
+        _buildDoctorsList(provider),
+        const SizedBox(height: 24),
+        const Text(
+          'Other Staff Rosters Today',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
         _buildStaffList(provider),
@@ -251,6 +259,51 @@ class AdminDashboard extends StatelessWidget {
           ),
         )
       ],
+    );
+  }
+
+  Widget _buildDoctorsList(AdminProvider provider) {
+    return StreamBuilder<List<UserModel>>(
+      stream: provider.doctorsStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final doctors = snapshot.data ?? [];
+        if (doctors.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(
+                child: Text('No registered doctors found.', style: TextStyle(color: Colors.grey)),
+              ),
+            ),
+          );
+        }
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: doctors.length,
+          itemBuilder: (context, index) {
+            final doc = doctors[index];
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: SwitchListTile(
+                secondary: CircleAvatar(
+                  backgroundColor: doc.isPresent ? Colors.blue.withOpacity(0.2) : Colors.grey.withOpacity(0.2),
+                  child: Icon(Icons.medical_services, color: doc.isPresent ? Colors.blue : Colors.grey),
+                ),
+                title: Text(doc.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(doc.specialty ?? 'General'),
+                value: doc.isPresent,
+                onChanged: (bool value) {
+                  provider.toggleDoctorPresence(doc.uid, value);
+                },
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

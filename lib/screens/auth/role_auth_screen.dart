@@ -33,6 +33,18 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
   List<Map<String, dynamic>> _phcList = [];
   bool _isLoadingPhcs = true;
 
+  final List<String> _specialties = [
+    'General Physician',
+    'Cardiologist',
+    'Pediatrician',
+    'Dermatologist',
+    'General Surgeon',
+    'Gynecologist',
+    'Urologist',
+    'Orthopedic'
+  ];
+  String? _selectedSpecialty;
+
   @override
   void initState() {
     super.initState();
@@ -112,6 +124,7 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
         doctorRegId: widget.role == UserRole.doctor ? _regExtraCtrl.text.trim() : null,
         hospitalRegNo: widget.role == UserRole.admin ? _regExtraCtrl.text.trim() : null,
         pharmacistRegNo: widget.role == UserRole.pharmacist ? _regExtraCtrl.text.trim() : null,
+        specialty: widget.role == UserRole.doctor ? _selectedSpecialty ?? 'General Physician' : null,
       );
 
       if (mounted) {
@@ -241,9 +254,16 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
                       )
                     : DropdownButtonFormField<String>(
                         value: _selectedPhcId,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Assigned PHC / Clinic',
-                          prefixIcon: Icon(Icons.local_hospital),
+                          prefixIcon: const Icon(Icons.local_hospital),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          filled: true,
+                          fillColor: Theme.of(context).brightness == Brightness.dark 
+                              ? Theme.of(context).colorScheme.surface 
+                              : Colors.grey[50],
                         ),
                         isExpanded: true,
                         items: _phcList.map((phc) {
@@ -263,6 +283,24 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
                     controller: _regExtraCtrl,
                     prefixIcon: Icons.badge,
                   ),
+                  if (widget.role == UserRole.doctor) ...[
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSpecialty,
+                      decoration: InputDecoration(
+                        labelText: 'Medical Specialty',
+                        prefixIcon: const Icon(Icons.medical_services),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark 
+                            ? Theme.of(context).colorScheme.surface 
+                            : Colors.grey[50],
+                      ),
+                      isExpanded: true,
+                      items: _specialties.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+                      onChanged: (val) => setState(() => _selectedSpecialty = val),
+                    ),
+                  ],
                 ],
                 const SizedBox(height: 24),
                 CustomButton(text: 'Register', onPressed: _handleRegister, isLoading: provider.isLoading),
