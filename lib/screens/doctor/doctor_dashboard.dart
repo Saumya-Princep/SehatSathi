@@ -122,6 +122,14 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
             final appointments = snapshot.data ?? [];
             final waitingQueue = appointments.where((a) => a.status == AppointmentStatus.scheduled || a.status == AppointmentStatus.checkedIn).toList();
             final completed = appointments.where((a) => a.status == AppointmentStatus.completed).length;
+            
+            // Dynamic calculations for analytics
+            final pendingReview = appointments.where((a) => a.status == AppointmentStatus.inProgress).length;
+            final emergencyFlags = appointments.where((a) {
+              final reason = a.reason.toLowerCase();
+              return reason.contains('emergency') || reason.contains('urgent') || reason.contains('pain') || reason.contains('chest');
+            }).length;
+            final avgWaitTime = waitingQueue.isEmpty ? 0 : (waitingQueue.length * 12); // Estimated 12 mins per waiting patient
 
             return Scaffold(
               appBar: AppBar(
@@ -157,9 +165,9 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                       child: AnalyticsCards(
                         totalAppointments: appointments.length,
                         completedAppointments: completed,
-                        pendingReview: 3, 
-                        emergencyFlags: 1, 
-                        avgWaitTime: 14, 
+                        pendingReview: pendingReview, 
+                        emergencyFlags: emergencyFlags, 
+                        avgWaitTime: avgWaitTime, 
                       ),
                     ),
                     Container(

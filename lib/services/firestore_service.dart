@@ -49,20 +49,73 @@ class FirestoreService {
     }).toList();
   }
 
-  Future<Map<String, dynamic>?> getDoctorBySpecialty(String specialty) async {
-    final query = await _db.collection('users')
+  Future<Map<String, dynamic>?> assignDoctor(String patientId, String specialty) async {
+    // 1. Check patient history for a previous doctor in this specialty who is present
+    final pastRecordsQuery = await _db.collection('medical_records')
+        .where('patientId', isEqualTo: patientId)
+        .get();
+        
+    // Sort locally to avoid needing a Firestore composite index (patientId + date)
+    final sortedDocs = pastRecordsQuery.docs.toList();
+    sortedDocs.sort((a, b) {
+      final dateA = (a.data()['date'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateB = (b.data()['date'] as Timestamp?)?.toDate() ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return dateB.compareTo(dateA); // Descending
+    });
+
+    for (var doc in sortedDocs.take(10)) {
+      final doctorId = doc.data()['doctorId'];
+      if (doctorId != null) {
+        final docSnapshot = await _db.collection('users').doc(doctorId).get();
+        if (docSnapshot.exists && docSnapshot.data() != null) {
+          final docData = docSnapshot.data()!;
+          if (docData['role'] == 'doctor' && docData['isPresent'] == true && docData['specialty'] == specialty) {
+            return {'id': docSnapshot.id, 'name': docData['name'] ?? 'Doctor', 'specialty': docData['specialty'] ?? specialty};
+          }
+        }
+      }
+    }
+
+    // 2. Load balancing: find all present doctors in the specialty
+    var availableDocsQuery = await _db.collection('users')
         .where('role', isEqualTo: 'doctor')
         .where('specialty', isEqualTo: specialty)
-        .limit(1)
+        .where('isPresent', isEqualTo: true)
         .get();
-    
-    if (query.docs.isEmpty) {
-      // Fallback to any doctor if specialist not found
-      final fallback = await _db.collection('users').where('role', isEqualTo: 'doctor').limit(1).get();
-      if (fallback.docs.isEmpty) return null;
-      return {'id': fallback.docs.first.id, 'name': fallback.docs.first.data()['name'] ?? 'Doctor', 'specialty': fallback.docs.first.data()['specialty'] ?? 'General Physician'};
+
+    // Fallback: If no specialist is present, find any present doctor
+    if (availableDocsQuery.docs.isEmpty) {
+      availableDocsQuery = await _db.collection('users')
+          .where('role', isEqualTo: 'doctor')
+          .where('isPresent', isEqualTo: true)
+          .get();
     }
-    return {'id': query.docs.first.id, 'name': query.docs.first.data()['name'] ?? 'Doctor', 'specialty': query.docs.first.data()['specialty'] ?? specialty};
+    
+    if (availableDocsQuery.docs.isEmpty) {
+      return null; // No doctors are currently present
+    }
+
+    // 3. Find the one with the lowest queue count
+    String? selectedDoctorId;
+    String? selectedDoctorName;
+    String? selectedSpecialty;
+    int minQueue = 999999;
+
+    for (var doc in availableDocsQuery.docs) {
+      final qCount = await getDoctorQueueCount(doc.id);
+      if (qCount < minQueue) {
+        minQueue = qCount;
+        selectedDoctorId = doc.id;
+        selectedDoctorName = doc.data()['name'] ?? 'Doctor';
+        selectedSpecialty = doc.data()['specialty'] ?? specialty;
+      }
+    }
+
+    if (selectedDoctorId != null) {
+      return {'id': selectedDoctorId, 'name': selectedDoctorName, 'specialty': selectedSpecialty};
+    }
+    
+    return null;
   }
 
   // EHR Records

@@ -52,7 +52,7 @@ class PatientProvider with ChangeNotifier {
     }
 
     final specialty = TriageService.determineSpecialty(reason);
-    final doctor = await _firestoreService.getDoctorBySpecialty(specialty);
+    final doctor = await _firestoreService.assignDoctor(patientId, specialty);
     if (doctor == null) {
       throw Exception('No doctors available at this time.');
     }
