@@ -7,6 +7,7 @@ import '../../models/attendance.dart';
 import '../../models/user_model.dart';
 import '../../widgets/alert_banner.dart';
 import '../auth/login_screen.dart';
+import '../../models/health_advisory.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -239,6 +240,18 @@ class AdminDashboard extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        const Text(
+          'Active Health Advisories',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.redAccent),
+        ),
+        const SizedBox(height: 8),
+        _buildActiveAdvisoriesList(provider),
+        const SizedBox(height: 24),
+        const Text(
+          'Doctor Presence Control',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
         _buildDoctorsList(provider),
         const SizedBox(height: 24),
@@ -257,10 +270,63 @@ class AdminDashboard extends StatelessWidget {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
           ),
-        )
+        ),
       ],
     );
   }
+
+  Widget _buildActiveAdvisoriesList(AdminProvider provider) {
+    return StreamBuilder<List<HealthAdvisory>>(
+      stream: provider.activeAdvisoriesStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final advisories = snapshot.data ?? [];
+        if (advisories.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(
+                child: Text('No active advisories.', style: TextStyle(color: Colors.grey)),
+              ),
+            ),
+          );
+        }
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: advisories.length,
+          itemBuilder: (context, index) {
+            final adv = advisories[index];
+            final color = adv.severity.toLowerCase() == 'critical'
+                ? Colors.redAccent
+                : (adv.severity.toLowerCase() == 'warning' ? Colors.orangeAccent : Colors.blue);
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: Icon(Icons.campaign, color: color),
+                title: Text(adv.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(adv.description, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Cancel Advisory',
+                  onPressed: () async {
+                    try {
+                      await provider.deleteAdvisory(adv.id);
+                    } catch (e) {
+                      debugPrint('Error deleting advisory: $e');
+                    }
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   Widget _buildDoctorsList(AdminProvider provider) {
     return StreamBuilder<List<UserModel>>(

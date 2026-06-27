@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/patient_provider.dart';
 import '../../models/medical_record.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/health_advisory.dart';
 import '../../models/ambulance.dart';
 import '../../models/appointment.dart';
@@ -103,12 +104,30 @@ class PatientDashboard extends StatelessWidget {
                                   Text('Assigned to: ${apt.doctorName}', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.w600)),
                                 ],
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.cancel, color: Colors.redAccent),
-                                onPressed: () {
-                                  provider.cancelAppointment(apt.id);
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Left the doctor queue.')));
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.video_call, color: Colors.blue),
+                                    onPressed: () async {
+                                      final url = Uri.parse('https://wa.me/15551234567?text=Hello%20Dr.%20${Uri.encodeComponent(apt.doctorName)},%20I%20am%20ready%20for%20my%20teleconsultation.%20(Appointment%20ID:%20${apt.id})');
+                                      try {
+                                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp or Browser')));
+                                        }
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.cancel, color: Colors.redAccent),
+                                    onPressed: () {
+                                      provider.cancelAppointment(apt.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Left the doctor queue.')));
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           );
@@ -139,6 +158,42 @@ class PatientDashboard extends StatelessWidget {
                         },
                       ),
                     ),
+                  ),
+
+                  StreamBuilder<List<MedicalRecord>>(
+                    stream: provider.medicalRecordsStream,
+                    builder: (context, snapshot) {
+                      final allRecords = snapshot.data ?? [];
+                      if (allRecords.isEmpty) return const SizedBox.shrink();
+                      
+                      final latestRecord = allRecords.first;
+                      if (latestRecord.prescriptions == null || latestRecord.prescriptions!.isEmpty) return const SizedBox.shrink();
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Card(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('My Daily Medications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 12),
+                                ...latestRecord.prescriptions!.map((p) => CheckboxListTile(
+                                  title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  subtitle: Text(p.dosage),
+                                  value: false,
+                                  onChanged: (val) {
+                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Marked ${p.name} as taken.')));
+                                  },
+                                )).toList(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
 
                   Padding(
@@ -261,6 +316,8 @@ class PatientDashboard extends StatelessWidget {
       ),
     );
   }
+
+
 }
 
 class JoinQueueDialog extends StatefulWidget {

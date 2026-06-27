@@ -5,6 +5,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/pharmacist_provider.dart';
 import '../../models/inventory_item.dart';
 import '../../models/medical_record.dart';
+import '../../models/health_advisory.dart';
+import '../../widgets/health_advisory_carousel.dart';
 import '../auth/login_screen.dart';
 import 'package:uuid/uuid.dart';
 
@@ -75,16 +77,61 @@ class PharmacistDashboard extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text('Add Medicine'),
       ),
-      body: StreamBuilder<List<InventoryItem>>(
-        stream: provider.inventoryStream,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final items = snapshot.data ?? [];
-          if (items.isEmpty) {
-            return const Center(child: Text('No inventory items found.'));
-          }
+      body: Column(
+        children: [
+          StreamBuilder<List<HealthAdvisory>>(
+            stream: provider.activeAdvisoriesStream,
+            builder: (context, snapshot) {
+              final advisories = snapshot.data ?? [];
+              if (advisories.isEmpty) return const SizedBox.shrink();
+              
+              final isDengue = advisories.any((a) => a.title.toLowerCase().contains('dengue'));
+              final isFlu = advisories.any((a) => a.title.toLowerCase().contains('flu') || a.title.toLowerCase().contains('fever'));
+              
+              return Column(
+                children: [
+                  HealthAdvisoryCarousel(advisories: advisories),
+                  if (isDengue)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.red[900], borderRadius: BorderRadius.circular(8)),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning, color: Colors.white),
+                          SizedBox(width: 8),
+                          Expanded(child: Text('SMART ALERT: Dengue outbreak detected. Stock up on Paracetamol and IV Fluids immediately!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                        ],
+                      ),
+                    ),
+                  if (isFlu)
+                    Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(color: Colors.orange[900], borderRadius: BorderRadius.circular(8)),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.warning, color: Colors.white),
+                          SizedBox(width: 8),
+                          Expanded(child: Text('SMART ALERT: Flu outbreak detected. Ensure adequate stock of Antipyretics and Cough Syrups.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                        ],
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          Expanded(
+            child: StreamBuilder<List<InventoryItem>>(
+              stream: provider.inventoryStream,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final items = snapshot.data ?? [];
+                if (items.isEmpty) {
+                  return const Center(child: Text('No inventory items found.'));
+                }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: items.length,
@@ -123,9 +170,12 @@ class PharmacistDashboard extends StatelessWidget {
           },
         );
       },
-    ),
-  );
-}
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _buildPrescriptionsTab(BuildContext context, PharmacistProvider provider) {
     return StreamBuilder<List<MedicalRecord>>(

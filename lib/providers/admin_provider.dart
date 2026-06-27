@@ -105,6 +105,10 @@ class AdminProvider with ChangeNotifier {
   }
 
   // Health Advisories
+  Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
+    return _firestoreService.getHealthAdvisories();
+  }
+
   Future<void> broadcastAdvisory(String title, String description, String severity) async {
     final advisory = HealthAdvisory(
       id: const Uuid().v4(),
@@ -114,6 +118,10 @@ class AdminProvider with ChangeNotifier {
       date: DateTime.now(),
     );
     await _firestoreService.postHealthAdvisory(advisory);
+  }
+
+  Future<void> deleteAdvisory(String id) async {
+    await _firestoreService.deleteHealthAdvisory(id);
   }
 
   // Doctors
