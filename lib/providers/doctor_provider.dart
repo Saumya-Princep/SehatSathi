@@ -4,6 +4,7 @@ import '../models/medical_record.dart';
 import '../models/attendance.dart';
 import '../models/inventory_item.dart';
 import '../models/appointment.dart';
+import '../models/health_advisory.dart';
 import 'package:uuid/uuid.dart';
 
 class DoctorProvider with ChangeNotifier {
@@ -20,6 +21,10 @@ class DoctorProvider with ChangeNotifier {
 
   Stream<List<MedicalRecord>> get doctorRecordsStream {
     return _firestoreService.getDoctorRecords(doctorId);
+  }
+
+  Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
+    return _firestoreService.getHealthAdvisories();
   }
 
   Future<List<Map<String, dynamic>>> getPatientsList() async {

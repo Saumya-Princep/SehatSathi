@@ -386,6 +386,10 @@ class FirestoreService {
     await _db.collection('advisories').doc(advisory.id).set(advisory.toMap());
   }
 
+  Future<void> deleteHealthAdvisory(String advisoryId) async {
+    await _db.collection('advisories').doc(advisoryId).delete();
+  }
+
   // Appointments / Digital Queue
   Stream<List<Appointment>> getDoctorAppointments(String doctorId) {
     return _db.collection('appointments')

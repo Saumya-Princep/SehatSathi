@@ -4,8 +4,10 @@ import '../../../models/appointment.dart';
 import '../../../models/vitals.dart';
 import '../../../models/medical_record.dart';
 import '../../../models/inventory_item.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../providers/doctor_provider.dart';
 import '../../../services/firestore_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class InteractivePatientModal extends StatefulWidget {
   final DoctorProvider provider;
@@ -26,6 +28,8 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
   final _diagnosisController = TextEditingController();
   final _notesController = TextEditingController();
   bool _isLoading = false;
+  bool _isListening = false;
+  final stt.SpeechToText _speech = stt.SpeechToText();
 
   late List<Vitals> _historicalVitals;
   List<MedicalRecord> _patientRecords = [];
@@ -100,8 +104,146 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
             SizedBox(width: 16),
             Icon(Icons.circle, color: Colors.blue, size: 12), SizedBox(width: 4), Text('Heart Rate'),
           ],
-        )
+        ),
+        const SizedBox(height: 24),
+        _buildAIPanel(),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.science),
+            label: const Text('View Lab Reports'),
+            onPressed: () => _showLabResultsDialog(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.chat),
+            label: const Text('Message via WhatsApp'),
+            onPressed: () async {
+              final url = Uri.parse('https://wa.me/15551234567?text=Hello,%20this%20is%20Dr.%20${Uri.encodeComponent(widget.appointment.doctorName)}%20regarding%20your%20teleconsultation.');
+              try {
+                await launchUrl(url, mode: LaunchMode.externalApplication);
+              } catch (e) {
+                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp or Browser')));
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+          ),
+        ),
       ],
+    );
+  }
+
+  void _simulateVoiceToText() async {
+    if (!_isListening) {
+      bool available = await _speech.initialize(
+        onStatus: (val) => print('onStatus: $val'),
+        onError: (val) => print('onError: $val'),
+      );
+      if (available) {
+        setState(() => _isListening = true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Listening... Speak now.'), duration: Duration(seconds: 2)));
+        _speech.listen(
+          onResult: (val) => setState(() {
+            _notesController.text = val.recognizedWords;
+          }),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Microphone permission denied or speech recognition unavailable.')));
+      }
+    } else {
+      setState(() => _isListening = false);
+      _speech.stop();
+    }
+  }
+
+  Widget _buildAIPanel() {
+    // Simple mock logic: if last BP systolic > 120, flag hypertension risk
+    final latestVitals = _historicalVitals.last;
+    final isHighBP = latestVitals.bloodPressureSystolic > 120;
+    
+    if (isHighBP) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.red.withOpacity(0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.withOpacity(0.3))),
+        child: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('AI Insight: Hypertension Risk', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              Text('Systolic BP is ${latestVitals.bloodPressureSystolic} mmHg. Consider reviewing cardiovascular health.', style: const TextStyle(fontSize: 12, color: Colors.red)),
+            ]))
+          ],
+        ),
+      );
+    } else {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: Colors.green, size: 28),
+            SizedBox(width: 12),
+            Expanded(child: Text('AI Insight: Vitals are stable and within normal ranges.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+          ],
+        ),
+      );
+    }
+  }
+
+  void _showLabResultsDialog() {
+    showDialog(context: context, builder: (_) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 600),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              const Expanded(child: Text('Comprehensive Metabolic Panel', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+              IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))
+            ]),
+            const Divider(),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+              child: Column(
+                children: [
+                  _buildLabRow('Glucose', '95 mg/dL', '70-99', false),
+                  const Divider(),
+                  _buildLabRow('Cholesterol (Total)', '240 mg/dL', '<200', true),
+                  const Divider(),
+                  _buildLabRow('Triglycerides', '180 mg/dL', '<150', true),
+                  const Divider(),
+                  _buildLabRow('Calcium', '9.4 mg/dL', '8.6-10.2', false),
+                ],
+              ),
+            )
+          ]
+        )
+      )
+    ));
+  }
+
+  Widget _buildLabRow(String test, String result, String ref, bool isAbnormal) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(flex: 2, child: Text(test, style: const TextStyle(fontWeight: FontWeight.bold))),
+          Expanded(flex: 1, child: Text(result, style: TextStyle(color: isAbnormal ? Colors.red : Colors.black, fontWeight: isAbnormal ? FontWeight.bold : FontWeight.normal))),
+          Expanded(flex: 1, child: Text(ref, style: const TextStyle(color: Colors.grey))),
+          if (isAbnormal) const Icon(Icons.warning, color: Colors.red, size: 16) else const SizedBox(width: 16),
+        ],
+      ),
     );
   }
 
@@ -156,6 +298,10 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
               labelText: 'Progress Notes & Treatment Plan',
               alignLabelWithHint: true,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              suffixIcon: IconButton(
+                icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: _isListening ? Colors.red : Colors.grey),
+                onPressed: _simulateVoiceToText,
+              ),
             ),
           ),
           const SizedBox(height: 16),

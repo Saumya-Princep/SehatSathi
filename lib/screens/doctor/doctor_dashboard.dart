@@ -12,6 +12,8 @@ import 'widgets/analytics_cards.dart';
 import 'widgets/patient_queue_sidebar.dart';
 import 'widgets/schedule_canvas.dart';
 import 'widgets/interactive_patient_modal.dart';
+import '../../widgets/health_advisory_carousel.dart';
+import '../../models/health_advisory.dart';
 
 class DoctorDashboard extends StatelessWidget {
   const DoctorDashboard({Key? key}) : super(key: key);
@@ -160,6 +162,14 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
               Widget mainContent = SingleChildScrollView(
                 child: Column(
                   children: [
+                    StreamBuilder<List<HealthAdvisory>>(
+                      stream: provider.activeAdvisoriesStream,
+                      builder: (context, snapshot) {
+                        final advisories = snapshot.data ?? [];
+                        if (advisories.isEmpty) return const SizedBox.shrink();
+                        return HealthAdvisoryCarousel(advisories: advisories);
+                      },
+                    ),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: AnalyticsCards(
