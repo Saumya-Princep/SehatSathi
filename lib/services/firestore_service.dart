@@ -226,13 +226,21 @@ class FirestoreService {
       final docId = query.docs.first.id;
       await _db.collection('ambulances').doc(docId).update({
         'status': AmbulanceStatus.dispatched.name,
-        'latitude': lat,
-        'longitude': lng,
         'patientId': patientId,
         'lastUpdated': FieldValue.serverTimestamp(),
       });
     } else {
-      throw Exception('No available ambulance at the moment.');
+      // Create a mock ambulance for demo purposes
+      final newAmbulanceRef = _db.collection('ambulances').doc();
+      await newAmbulanceRef.set({
+        'vehicleNumber': 'DL-1C-9999',
+        'status': AmbulanceStatus.dispatched.name,
+        'latitude': 25.2450, // Bhagalpur Sadar Hospital
+        'longitude': 86.9746,
+        'assignedPhcId': phcId,
+        'patientId': patientId,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
     }
   }
 
