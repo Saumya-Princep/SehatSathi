@@ -5,6 +5,7 @@ import '../models/ambulance.dart';
 import '../models/medical_record.dart';
 import '../models/health_advisory.dart';
 import '../models/user_model.dart';
+import '../models/inventory_item.dart';
 import 'package:uuid/uuid.dart';
 
 class AdminProvider with ChangeNotifier {
@@ -15,6 +16,10 @@ class AdminProvider with ChangeNotifier {
 
   Stream<List<Attendance>> get todayAttendanceStream {
     return _firestoreService.getTodayAttendance(phcId);
+  }
+
+  Stream<List<InventoryItem>> get inventoryStream {
+    return _firestoreService.getInventory();
   }
   
   Stream<List<Ambulance>> get ambulancesStream {

@@ -9,6 +9,7 @@ import '../patient/patient_dashboard.dart';
 import '../doctor/doctor_dashboard.dart';
 import '../pharmacist/pharmacist_dashboard.dart';
 import '../admin/admin_dashboard.dart';
+import '../lab/lab_dashboard.dart';
 
 class RoleAuthScreen extends StatefulWidget {
   final UserRole role;
@@ -29,6 +30,15 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
   final _regPassCtrl = TextEditingController();
   final _regExtraCtrl = TextEditingController(); // Doctor ID, Hospital Reg, etc.
 
+  // New Patient Fields
+  final _regAgeCtrl = TextEditingController();
+  final _regAddressCtrl = TextEditingController();
+  final _regEmergencyContactCtrl = TextEditingController();
+  String? _selectedGender;
+  String? _selectedBloodGroup;
+  final List<String> _genders = ['Male', 'Female', 'Other'];
+  final List<String> _bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
   String? _selectedPhcId;
   List<Map<String, dynamic>> _phcList = [];
   bool _isLoadingPhcs = true;
@@ -44,6 +54,21 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
     'Orthopedic'
   ];
   String? _selectedSpecialty;
+
+  @override
+  void dispose() {
+    _loginEmailCtrl.dispose();
+    _loginPassCtrl.dispose();
+    _regNameCtrl.dispose();
+    _regEmailCtrl.dispose();
+    _regPassCtrl.dispose();
+    _regExtraCtrl.dispose();
+    _regAgeCtrl.dispose();
+    _regAddressCtrl.dispose();
+    _regEmergencyContactCtrl.dispose();
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -86,6 +111,9 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
       case UserRole.admin:
         destination = const AdminDashboard();
         break;
+      case UserRole.lab_technician:
+        destination = const LabDashboard();
+        break;
     }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => destination),
@@ -95,11 +123,31 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
 
   Future<void> _handleLogin() async {
     final provider = context.read<AuthProvider>();
-    final success = await provider.signIn(_loginEmailCtrl.text.trim(), _loginPassCtrl.text.trim());
-    if (success && mounted) {
-      _navigateToDashboard();
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login failed. Check credentials.')));
+    try {
+      final success = await provider.signIn(_loginEmailCtrl.text.trim(), _loginPassCtrl.text.trim());
+      if (success && mounted) {
+        if (provider.userModel?.role != widget.role) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Access denied: You are registered as a ${provider.userModel?.role.name.toUpperCase()}. Please use the correct portal.'),
+          ));
+          provider.signOut();
+          return;
+        }
+        _navigateToDashboard();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Login failed. Ensure you have registered your account.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        String errorMsg = 'Login failed.';
+        final errString = e.toString().toLowerCase();
+        if (errString.contains('invalid-credential') || errString.contains('wrong-password') || errString.contains('user-not-found')) {
+          errorMsg = 'Invalid email or password. Please try again.';
+        } else {
+          errorMsg = 'Login failed: ${e.toString().replaceAll(RegExp(r'\\[.*?\\] '), '')}';
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
+      }
     }
   }
 
@@ -125,6 +173,11 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
         hospitalRegNo: widget.role == UserRole.admin ? _regExtraCtrl.text.trim() : null,
         pharmacistRegNo: widget.role == UserRole.pharmacist ? _regExtraCtrl.text.trim() : null,
         specialty: widget.role == UserRole.doctor ? _selectedSpecialty ?? 'General Physician' : null,
+        age: widget.role == UserRole.patient ? int.tryParse(_regAgeCtrl.text) : null,
+        gender: widget.role == UserRole.patient ? _selectedGender : null,
+        bloodGroup: widget.role == UserRole.patient ? _selectedBloodGroup : null,
+        address: widget.role == UserRole.patient ? _regAddressCtrl.text.trim() : null,
+        emergencyContact: widget.role == UserRole.patient ? _regEmergencyContactCtrl.text.trim() : null,
       );
 
       if (mounted) {
@@ -139,12 +192,24 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
 
   Future<void> _handleGoogleSignIn() async {
     final provider = context.read<AuthProvider>();
-    final success = await provider.signInWithGoogle();
-    if (success && mounted) {
-      // Note: If a non-patient signs in with Google and it's a new account, they will be registered as a Patient by default.
-      _navigateToDashboard();
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Google Sign-In failed or was canceled.')));
+    try {
+      final success = await provider.signInWithGoogle();
+      if (success && mounted) {
+        if (provider.userModel?.role != widget.role) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Access denied: You are registered as a ${provider.userModel?.role.name.toUpperCase()}. Please use the correct portal.'),
+          ));
+          provider.signOut();
+          return;
+        }
+        _navigateToDashboard();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Google Sign-In failed or was canceled.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Google Sign-In error: ${e.toString().replaceAll(RegExp(r'\\[.*?\\] '), '')}')));
+      }
     }
   }
 
@@ -172,6 +237,8 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
         return 'Hospital Registration Number';
       case UserRole.pharmacist:
         return 'Medical Registration Number';
+      case UserRole.lab_technician:
+        return 'Laboratory License Number';
       default:
         return '';
     }
@@ -247,6 +314,59 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
                 const SizedBox(height: 16),
                 CustomTextField(label: 'Password', controller: _regPassCtrl, prefixIcon: Icons.lock, obscureText: true),
                 const SizedBox(height: 16),
+                
+                if (widget.role == UserRole.patient) ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: CustomTextField(
+                          label: 'Age',
+                          controller: _regAgeCtrl,
+                          prefixIcon: Icons.cake,
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedGender,
+                          decoration: InputDecoration(
+                            labelText: 'Gender',
+                            prefixIcon: const Icon(Icons.person_outline),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                            filled: true,
+                            fillColor: Theme.of(context).brightness == Brightness.dark 
+                                ? Theme.of(context).colorScheme.surface 
+                                : Colors.grey[50],
+                          ),
+                          items: _genders.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
+                          onChanged: (val) => setState(() => _selectedGender = val),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: _selectedBloodGroup,
+                    decoration: InputDecoration(
+                      labelText: 'Blood Group',
+                      prefixIcon: const Icon(Icons.bloodtype),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      filled: true,
+                      fillColor: Theme.of(context).brightness == Brightness.dark 
+                          ? Theme.of(context).colorScheme.surface 
+                          : Colors.grey[50],
+                    ),
+                    items: _bloodGroups.map((bg) => DropdownMenuItem(value: bg, child: Text(bg))).toList(),
+                    onChanged: (val) => setState(() => _selectedBloodGroup = val),
+                  ),
+                  const SizedBox(height: 16),
+                  CustomTextField(label: 'Address', controller: _regAddressCtrl, prefixIcon: Icons.home),
+                  const SizedBox(height: 16),
+                  CustomTextField(label: 'Emergency Contact', controller: _regEmergencyContactCtrl, prefixIcon: Icons.contact_phone, keyboardType: TextInputType.phone),
+                  const SizedBox(height: 16),
+                ],
+
                 _isLoadingPhcs
                     ? const Padding(
                         padding: EdgeInsets.all(8.0),
