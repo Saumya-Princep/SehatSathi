@@ -1,13 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import '../../../models/appointment.dart';
-import '../../../models/vitals.dart';
 import '../../../models/medical_record.dart';
+import '../../../models/vitals.dart';
+import '../../../models/lab_report.dart';
 import '../../../models/inventory_item.dart';
+import '../../../widgets/vitals_summary_widget.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../../providers/doctor_provider.dart';
 import '../../../services/firestore_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
+import 'package:uuid/uuid.dart';
 
 class InteractivePatientModal extends StatefulWidget {
   final DoctorProvider provider;
@@ -31,7 +35,8 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
   bool _isListening = false;
   final stt.SpeechToText _speech = stt.SpeechToText();
 
-  late List<Vitals> _historicalVitals;
+  List<Vitals> _historicalVitals = [];
+  bool _isLoadingVitals = true;
   List<MedicalRecord> _patientRecords = [];
   bool _isNewProblem = true;
   String? _selectedRecordId;
@@ -41,16 +46,17 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
   void initState() {
     super.initState();
     _fetchPatientRecords();
-    _historicalVitals = List.generate(5, (index) {
-      return Vitals(
-        id: 'v_$index',
-        patientId: widget.appointment.patientId,
-        date: DateTime.now().subtract(Duration(days: (5 - index) * 30)),
-        bloodPressureSystolic: 110 + (index * 2) + (index % 2 == 0 ? 5 : -5),
-        bloodPressureDiastolic: 70 + index + (index % 2 == 0 ? 2 : -2),
-        heartRate: 65 + (index * 3),
-        weight: 70.0 + (index * 0.5),
-      );
+    _fetchPatientVitals();
+  }
+
+  void _fetchPatientVitals() {
+    FirestoreService().getPatientVitals(widget.appointment.patientId).listen((vitals) {
+      if (mounted) {
+        setState(() {
+          _historicalVitals = vitals;
+          _isLoadingVitals = false;
+        });
+      }
     });
   }
 
@@ -71,49 +77,53 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Vitals Tracking (Last 5 Visits)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 250,
-          child: LineChart(
-            LineChartData(
-              lineBarsData: [
-                LineChartBarData(
-                  spots: _historicalVitals.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.bloodPressureSystolic.toDouble())).toList(),
-                  isCurved: true,
-                  color: Colors.red,
-                  barWidth: 3,
-                ),
-                LineChartBarData(
-                  spots: _historicalVitals.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.heartRate.toDouble())).toList(),
-                  isCurved: true,
-                  color: Colors.blue,
-                  barWidth: 3,
-                ),
-              ],
-              titlesData: const FlTitlesData(show: false),
-              borderData: FlBorderData(show: true, border: Border.all(color: Colors.grey.withOpacity(0.2))),
-              gridData: const FlGridData(show: false),
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Row(
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(Icons.circle, color: Colors.red, size: 12), SizedBox(width: 4), Text('BP (Systolic)'),
-            SizedBox(width: 16),
-            Icon(Icons.circle, color: Colors.blue, size: 12), SizedBox(width: 4), Text('Heart Rate'),
+            const Expanded(
+              child: Text(
+                'Vitals Tracking (Last 5 Visits)', 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _showRecordVitalsDialog,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Record Vitals', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
           ],
         ),
+        const SizedBox(height: 16),
+        if (_isLoadingVitals)
+          const SizedBox(height: 150, child: Center(child: CircularProgressIndicator()))
+        else
+          VitalsSummaryWidget(vitalsList: _historicalVitals),
+        const SizedBox(height: 16),
+
         const SizedBox(height: 24),
         _buildAIPanel(),
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
+            icon: const Icon(Icons.history),
+            label: const Text('View Lab History'),
+            onPressed: () => _showDynamicLabHistory(),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
             icon: const Icon(Icons.science),
-            label: const Text('View Lab Reports'),
-            onPressed: () => _showLabResultsDialog(),
+            label: const Text('Order Lab Test'),
+            onPressed: () => _showOrderLabTestDialog(),
           ),
         ),
         const SizedBox(height: 16),
@@ -161,6 +171,8 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
   }
 
   Widget _buildAIPanel() {
+    if (_isLoadingVitals || _historicalVitals.isEmpty) return const SizedBox.shrink();
+
     // Simple mock logic: if last BP systolic > 120, flag hypertension risk
     final latestVitals = _historicalVitals.last;
     final isHighBP = latestVitals.bloodPressureSystolic > 120;
@@ -195,36 +207,223 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
     }
   }
 
-  void _showLabResultsDialog() {
+  void _showRecordVitalsDialog() {
+    final systolicCtrl = TextEditingController();
+    final diastolicCtrl = TextEditingController();
+    final hrCtrl = TextEditingController();
+    final weightCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Record Vitals'),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: systolicCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Systolic BP', hintText: '120'),
+                              validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: diastolicCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(labelText: 'Diastolic BP', hintText: '80'),
+                              validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: hrCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Heart Rate (bpm)', hintText: '72'),
+                        validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: weightCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Weight (kg)', hintText: '70.5'),
+                        validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (formKey.currentState!.validate()) {
+                            setDialogState(() => isSaving = true);
+                            try {
+                              final newVitals = Vitals(
+                                id: const Uuid().v4(),
+                                patientId: widget.appointment.patientId,
+                                date: DateTime.now(),
+                                bloodPressureSystolic: int.parse(systolicCtrl.text),
+                                bloodPressureDiastolic: int.parse(diastolicCtrl.text),
+                                heartRate: int.parse(hrCtrl.text),
+                                weight: double.parse(weightCtrl.text),
+                              );
+                              await FirestoreService().addVitals(widget.appointment.patientId, newVitals);
+                              if (context.mounted) {
+                                Navigator.pop(dialogContext);
+                                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vitals recorded successfully')));
+                              }
+                            } catch (e) {
+                              setDialogState(() => isSaving = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                              }
+                            }
+                          }
+                        },
+                  child: isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showDynamicLabHistory() {
     showDialog(context: context, builder: (_) => Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 600),
+        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 600),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Expanded(child: Text('Comprehensive Metabolic Panel', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
+              Expanded(child: Text('Lab History: ${widget.appointment.patientName}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold))),
               IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))
             ]),
             const Divider(),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.grey.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-              child: Column(
-                children: [
-                  _buildLabRow('Glucose', '95 mg/dL', '70-99', false),
-                  const Divider(),
-                  _buildLabRow('Cholesterol (Total)', '240 mg/dL', '<200', true),
-                  const Divider(),
-                  _buildLabRow('Triglycerides', '180 mg/dL', '<150', true),
-                  const Divider(),
-                  _buildLabRow('Calcium', '9.4 mg/dL', '8.6-10.2', false),
-                ],
-              ),
+            Expanded(
+              child: StreamBuilder<List<LabReport>>(
+                stream: FirestoreService().getPatientLabReports(widget.appointment.patientId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+                  final reports = snapshot.data ?? [];
+                  if (reports.isEmpty) return const Center(child: Text('No lab history found.'));
+                  
+                  return ListView.builder(
+                    itemCount: reports.length,
+                    itemBuilder: (context, index) {
+                      final r = reports[index];
+                      final isCompleted = r.status == 'completed';
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        child: ExpansionTile(
+                          title: Text(r.testName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            isCompleted 
+                              ? (r.timestamp != null ? 'Completed on ${DateFormat('MMM dd, yyyy - hh:mm a').format(r.timestamp!)}' : 'Completed') 
+                              : 'Pending...'
+                          ),
+                          trailing: Icon(isCompleted ? Icons.check_circle : Icons.hourglass_empty, color: isCompleted ? Colors.green : Colors.orange),
+                          children: [
+                            if (isCompleted)
+                              Padding(
+                                padding: const EdgeInsets.all(16.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    if (r.imageUrl != null && r.imageUrl!.isNotEmpty)
+                                      Container(
+                                        margin: const EdgeInsets.only(bottom: 16),
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey.shade300),
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              Navigator.of(context).push(MaterialPageRoute(
+                                                builder: (context) => Scaffold(
+                                                  backgroundColor: Colors.black,
+                                                  appBar: AppBar(
+                                                    backgroundColor: Colors.black,
+                                                    iconTheme: const IconThemeData(color: Colors.white),
+                                                    title: Text(r.testName, style: const TextStyle(color: Colors.white)),
+                                                  ),
+                                                  body: Center(
+                                                    child: InteractiveViewer(
+                                                      minScale: 0.5,
+                                                      maxScale: 4.0,
+                                                      child: r.imageUrl!.startsWith('data:image')
+                                                          ? Image.memory(base64Decode(r.imageUrl!.split(',').last))
+                                                          : Image.network(r.imageUrl!),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ));
+                                            },
+                                            child: r.imageUrl!.startsWith('data:image')
+                                                ? Image.memory(
+                                                    base64Decode(r.imageUrl!.split(',').last),
+                                                    fit: BoxFit.contain,
+                                                  )
+                                                : Image.network(
+                                                    r.imageUrl!,
+                                                    fit: BoxFit.contain,
+                                                    loadingBuilder: (context, child, loadingProgress) {
+                                                      if (loadingProgress == null) return child;
+                                                      return const Center(
+                                                        child: Padding(
+                                                          padding: EdgeInsets.all(32.0),
+                                                          child: CircularProgressIndicator(),
+                                                        ),
+                                                      );
+                                                    },
+                                                  ),
+                                          ),
+                                        ),
+                                      ),
+                                    if (r.resultText != null && r.resultText!.isNotEmpty) ...[
+                                      const Text('Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      const SizedBox(height: 4),
+                                      Text(r.resultText!),
+                                    ]
+                                  ],
+                                ),
+                              )
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                }
+              )
             )
           ]
         )
@@ -232,19 +431,39 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
     ));
   }
 
-  Widget _buildLabRow(String test, String result, String ref, bool isAbnormal) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(flex: 2, child: Text(test, style: const TextStyle(fontWeight: FontWeight.bold))),
-          Expanded(flex: 1, child: Text(result, style: TextStyle(color: isAbnormal ? Colors.red : Colors.black, fontWeight: isAbnormal ? FontWeight.bold : FontWeight.normal))),
-          Expanded(flex: 1, child: Text(ref, style: const TextStyle(color: Colors.grey))),
-          if (isAbnormal) const Icon(Icons.warning, color: Colors.red, size: 16) else const SizedBox(width: 16),
-        ],
+  void _showOrderLabTestDialog() {
+    final _testController = TextEditingController();
+    showDialog(context: context, builder: (_) => AlertDialog(
+      title: const Text('Order Lab Test'),
+      content: TextField(
+        controller: _testController,
+        decoration: const InputDecoration(labelText: 'Test Name (e.g. CBC, Lipid Panel)'),
       ),
-    );
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(
+          onPressed: () async {
+            if (_testController.text.trim().isNotEmpty) {
+              final newReport = LabReport(
+                id: const Uuid().v4(),
+                patientId: widget.appointment.patientId,
+                doctorId: widget.provider.doctorId,
+                phcId: widget.provider.phcId,
+                patientName: widget.appointment.patientName,
+                testName: _testController.text.trim(),
+                status: 'pending',
+              );
+              await FirestoreService().requestLabTest(newReport);
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Lab Test Ordered')));
+              }
+            }
+          },
+          child: const Text('Order'),
+        )
+      ]
+    ));
   }
 
   Widget _buildRightColumn() {
@@ -332,6 +551,7 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
                                 _selectedRecordId!,
                                 _notesController.text.trim(),
                                 _prescriptions,
+                                patientId: widget.appointment.patientId,
                               );
                             }
                           }

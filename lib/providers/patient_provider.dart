@@ -5,7 +5,9 @@ import '../models/medical_record.dart';
 import '../models/ambulance.dart';
 import '../models/health_advisory.dart';
 import '../models/appointment.dart';
+import '../models/vitals.dart';
 import 'package:uuid/uuid.dart';
+import '../services/sync_manager.dart';
 
 class PatientProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
@@ -14,8 +16,23 @@ class PatientProvider with ChangeNotifier {
 
   PatientProvider({required this.patientId, required this.phcId});
 
+  bool get isOffline => FirestoreService.isOfflineSimulated;
+
+  void toggleOfflineMode() async {
+    FirestoreService.isOfflineSimulated = !FirestoreService.isOfflineSimulated;
+    notifyListeners();
+    
+    if (!FirestoreService.isOfflineSimulated) {
+      await SyncManager.instance.syncPendingData();
+    }
+  }
+
   Stream<List<MedicalRecord>> get medicalRecordsStream {
     return _firestoreService.getPatientRecords(patientId);
+  }
+
+  Stream<List<Vitals>> get vitalsStream {
+    return _firestoreService.getPatientVitals(patientId);
   }
 
   Stream<Ambulance?> get activeAmbulanceStream {

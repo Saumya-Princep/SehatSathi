@@ -14,6 +14,8 @@ import 'widgets/schedule_canvas.dart';
 import 'widgets/interactive_patient_modal.dart';
 import '../../widgets/health_advisory_carousel.dart';
 import '../../models/health_advisory.dart';
+import '../../models/lab_report.dart';
+import 'package:uuid/uuid.dart';
 
 class DoctorDashboard extends StatelessWidget {
   const DoctorDashboard({Key? key}) : super(key: key);
@@ -75,24 +77,51 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
           return Scaffold(
             appBar: AppBar(
               title: Text(provider.doctorName),
-              actions: [
-                Consumer<AuthProvider>(
-                  builder: (context, auth, _) {
-                    final isDark = auth.themeMode == ThemeMode.dark;
-                    return IconButton(
-                      icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                      onPressed: () => auth.toggleTheme(!isDark),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.logout),
-                  onPressed: () {
-                    Provider.of<AuthProvider>(context, listen: false).signOut();
-                    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-                  },
-                ),
-              ],
+            ),
+            drawer: Drawer(
+              child: Column(
+                children: [
+                  Consumer<AuthProvider>(
+                    builder: (context, authProvider, _) {
+                      final docModel = authProvider.userModel;
+                      return UserAccountsDrawerHeader(
+                        accountName: Text(docModel?.name ?? 'Doctor'),
+                        accountEmail: Text(docModel?.contact ?? 'Doctor Portal'),
+                        currentAccountPicture: InkWell(
+                          onTap: () => authProvider.uploadProfilePicture(),
+                          child: CircleAvatar(
+                            backgroundColor: Colors.white,
+                            backgroundImage: docModel?.profilePicUrl != null ? NetworkImage(docModel!.profilePicUrl!) : null,
+                            child: docModel?.profilePicUrl == null ? const Icon(Icons.medical_services, size: 40, color: Colors.blue) : null,
+                          ),
+                        ),
+                      );
+                    }
+                  ),
+                  Consumer<AuthProvider>(
+                    builder: (context, auth, _) {
+                      final isDark = auth.themeMode == ThemeMode.dark;
+                      return SwitchListTile(
+                        title: const Text('Dark Mode'),
+                        value: isDark,
+                        onChanged: (val) => auth.toggleTheme(val),
+                        secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                      );
+                    },
+                  ),
+                  const Spacer(),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.logout, color: Colors.red),
+                    title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                    onTap: () {
+                      Provider.of<AuthProvider>(context, listen: false).signOut();
+                      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
             body: const Center(
               child: Padding(
@@ -126,7 +155,7 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
             final completed = appointments.where((a) => a.status == AppointmentStatus.completed).length;
             
             // Dynamic calculations for analytics
-            final pendingReview = appointments.where((a) => a.status == AppointmentStatus.inProgress).length;
+            // pendingReview will be calculated by the nested StreamBuilder below
             final emergencyFlags = appointments.where((a) {
               final reason = a.reason.toLowerCase();
               return reason.contains('emergency') || reason.contains('urgent') || reason.contains('pain') || reason.contains('chest');
@@ -136,24 +165,6 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
             return Scaffold(
               appBar: AppBar(
                 title: Text(provider.doctorName),
-                actions: [
-                  Consumer<AuthProvider>(
-                    builder: (context, auth, _) {
-                      final isDark = auth.themeMode == ThemeMode.dark;
-                      return IconButton(
-                        icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                        onPressed: () => auth.toggleTheme(!isDark),
-                      );
-                    },
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.logout),
-                    onPressed: () {
-                      Provider.of<AuthProvider>(context, listen: false).signOut();
-                      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-                    },
-                  ),
-                ],
               ),
           body: LayoutBuilder(
             builder: (context, constraints) {
@@ -170,15 +181,25 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                         return HealthAdvisoryCarousel(advisories: advisories);
                       },
                     ),
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: AnalyticsCards(
-                        totalAppointments: appointments.length,
-                        completedAppointments: completed,
-                        pendingReview: pendingReview, 
-                        emergencyFlags: emergencyFlags, 
-                        avgWaitTime: avgWaitTime, 
-                      ),
+                    StreamBuilder<List<LabReport>>(
+                      stream: provider.pendingLabReportsStream,
+                      builder: (context, labSnapshot) {
+                        final pendingLabCount = labSnapshot.data?.length ?? 0;
+                        return Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            children: [
+                              AnalyticsCards(
+                                totalAppointments: appointments.length,
+                                completedAppointments: completed,
+                                pendingReview: pendingLabCount, 
+                                emergencyFlags: emergencyFlags, 
+                                avgWaitTime: avgWaitTime, 
+                              ),
+                            ],
+                          ),
+                        );
+                      }
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -216,17 +237,62 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
               }
             },
           ),
-          drawer: MediaQuery.of(context).size.width <= 800
-              ? Drawer(
-                  child: PatientQueueSidebar(
-                    queue: waitingQueue,
-                    onPatientTap: (apt) {
-                      Navigator.pop(context); // Close drawer
-                      _openPatientModal(apt);
-                    },
-                  ),
-                )
-              : null,
+              drawer: Drawer(
+                child: Column(
+                  children: [
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, _) {
+                        final docModel = authProvider.userModel;
+                        return UserAccountsDrawerHeader(
+                          accountName: Text(docModel?.name ?? 'Doctor'),
+                          accountEmail: Text(docModel?.contact ?? 'Doctor Portal'),
+                          currentAccountPicture: InkWell(
+                            onTap: () => authProvider.uploadProfilePicture(),
+                            child: CircleAvatar(
+                              backgroundColor: Colors.white,
+                              backgroundImage: docModel?.profilePicUrl != null ? NetworkImage(docModel!.profilePicUrl!) : null,
+                              child: docModel?.profilePicUrl == null ? const Icon(Icons.medical_services, size: 40, color: Colors.blue) : null,
+                            ),
+                          ),
+                        );
+                      }
+                    ),
+                    Consumer<AuthProvider>(
+                      builder: (context, auth, _) {
+                        final isDark = auth.themeMode == ThemeMode.dark;
+                        return SwitchListTile(
+                          title: const Text('Dark Mode'),
+                          value: isDark,
+                          onChanged: (val) => auth.toggleTheme(val),
+                          secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                        );
+                      },
+                    ),
+                    if (MediaQuery.of(context).size.width <= 800)
+                      Expanded(
+                        child: PatientQueueSidebar(
+                          queue: waitingQueue,
+                          onPatientTap: (apt) {
+                            Navigator.pop(context);
+                            _openPatientModal(apt);
+                          },
+                        ),
+                      )
+                    else
+                      const Spacer(),
+                    const Divider(),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                      onTap: () {
+                        Provider.of<AuthProvider>(context, listen: false).signOut();
+                        Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
             );
           }
         );

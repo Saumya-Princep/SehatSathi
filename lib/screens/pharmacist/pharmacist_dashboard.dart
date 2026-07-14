@@ -15,6 +15,8 @@ class PharmacistDashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final user = authProvider.userModel;
     return ChangeNotifierProvider(
       create: (_) => PharmacistProvider(),
       child: DefaultTabController(
@@ -31,24 +33,51 @@ class PharmacistDashboard extends StatelessWidget {
                 Tab(icon: Icon(Icons.receipt_long), text: 'Prescriptions'),
               ],
             ),
-            actions: [
-              Consumer<AuthProvider>(
-                builder: (context, auth, _) {
-                  final isDark = auth.themeMode == ThemeMode.dark;
-                  return IconButton(
-                    icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                    onPressed: () => auth.toggleTheme(!isDark),
-                  );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () {
-                  Provider.of<AuthProvider>(context, listen: false).signOut();
-                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-                },
-              ),
-            ],
+          ),
+          drawer: Drawer(
+            child: Column(
+              children: [
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) {
+                    final user = authProvider.userModel;
+                    return UserAccountsDrawerHeader(
+                      accountName: Text(user?.name ?? 'Pharmacist'),
+                      accountEmail: Text(user?.contact ?? 'Pharmacy Portal'),
+                      currentAccountPicture: InkWell(
+                        onTap: () => authProvider.uploadProfilePicture(),
+                        child: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                          child: user?.profilePicUrl == null ? const Icon(Icons.local_pharmacy, size: 40, color: Colors.blue) : null,
+                        ),
+                      ),
+                    );
+                  }
+                ),
+                Consumer<AuthProvider>(
+                  builder: (context, auth, _) {
+                    final isDark = auth.themeMode == ThemeMode.dark;
+                    return SwitchListTile(
+                      title: const Text('Dark Mode'),
+                      value: isDark,
+                      onChanged: (val) => auth.toggleTheme(val),
+                      secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                    );
+                  },
+                ),
+                const Spacer(),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    authProvider.signOut();
+                    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
           body: Consumer<PharmacistProvider>(
             builder: (context, provider, child) {
@@ -256,7 +285,7 @@ class PharmacistDashboard extends StatelessWidget {
                             ElevatedButton.icon(
                               onPressed: () async {
                                 try {
-                                  final dispenseItems = pendingMeds.map((m) => {
+                                  final dispenseItems = pendingMeds.map<Map<String, dynamic>>((m) => {
                                     'id': m.id,
                                     'quantity': m.quantity,
                                   }).toList();

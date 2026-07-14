@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/patient_provider.dart';
-import '../../models/medical_record.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../services/firestore_service.dart';
+import '../../models/medical_record.dart';
+import '../../models/lab_report.dart';
+
 import '../../models/health_advisory.dart';
 import '../../models/ambulance.dart';
 import '../../models/appointment.dart';
@@ -11,7 +14,9 @@ import 'medical_records_screen.dart';
 import '../../widgets/record_card.dart';
 import '../../widgets/health_advisory_carousel.dart';
 import '../../widgets/ambulance_tracking_card.dart';
+import '../../widgets/vitals_summary_widget.dart';
 import '../auth/login_screen.dart';
+import '../../models/vitals.dart';
 import 'package:geolocator/geolocator.dart';
 
 class PatientDashboard extends StatelessWidget {
@@ -29,24 +34,78 @@ class PatientDashboard extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('My EHR Dashboard'),
-          actions: [
-            Consumer<AuthProvider>(
-              builder: (context, auth, _) {
-                final isDark = auth.themeMode == ThemeMode.dark;
-                return IconButton(
-                  icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                  onPressed: () => auth.toggleTheme(!isDark),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () {
-                authProvider.signOut();
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-              },
-            ),
-          ],
+        ),
+        drawer: Drawer(
+          child: Column(
+            children: [
+              Consumer<AuthProvider>(
+                builder: (context, authProvider, _) {
+                  final user = authProvider.userModel;
+                  return UserAccountsDrawerHeader(
+                    accountName: Text(user?.name ?? 'Patient'),
+                    accountEmail: Text(user?.contact ?? 'Patient Portal'),
+                    currentAccountPicture: InkWell(
+                      onTap: () => authProvider.uploadProfilePicture(),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.white,
+                        backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                        child: user?.profilePicUrl == null ? const Icon(Icons.person, size: 40, color: Colors.blue) : null,
+                      ),
+                    ),
+                  );
+                }
+              ),
+              Consumer<PatientProvider>(
+                builder: (context, provider, _) {
+                  return SwitchListTile(
+                    title: const Text('Offline View'),
+                    value: provider.isOffline,
+                    onChanged: (_) => provider.toggleOfflineMode(),
+                    secondary: const Icon(Icons.cloud_off),
+                  );
+                }
+              ),
+              Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  final isDark = auth.themeMode == ThemeMode.dark;
+                  return SwitchListTile(
+                    title: const Text('Dark Mode'),
+                    value: isDark,
+                    onChanged: (val) => auth.toggleTheme(val),
+                    secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                  );
+                },
+              ),
+              Consumer<PatientProvider>(
+                builder: (context, provider, _) {
+                  return ListTile(
+                    leading: const Icon(Icons.folder_shared),
+                    title: const Text('All Medical Records'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MedicalRecordsScreen(provider: provider),
+                        ),
+                      );
+                    },
+                  );
+                }
+              ),
+              const Spacer(),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  authProvider.signOut();
+                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
         body: Consumer<PatientProvider>(
           builder: (context, provider, child) {
@@ -160,14 +219,15 @@ class PatientDashboard extends StatelessWidget {
                     ),
                   ),
 
-                  StreamBuilder<List<MedicalRecord>>(
-                    stream: provider.medicalRecordsStream,
+
+
+
+
+                  StreamBuilder<List<Vitals>>(
+                    stream: provider.vitalsStream,
                     builder: (context, snapshot) {
-                      final allRecords = snapshot.data ?? [];
-                      if (allRecords.isEmpty) return const SizedBox.shrink();
-                      
-                      final latestRecord = allRecords.first;
-                      if (latestRecord.prescriptions == null || latestRecord.prescriptions!.isEmpty) return const SizedBox.shrink();
+                      final vitals = snapshot.data ?? [];
+                      if (vitals.isEmpty) return const SizedBox.shrink();
 
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -178,16 +238,9 @@ class PatientDashboard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('My Daily Medications', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 12),
-                                ...latestRecord.prescriptions!.map((p) => CheckboxListTile(
-                                  title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                  subtitle: Text(p.dosage),
-                                  value: false,
-                                  onChanged: (val) {
-                                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Marked ${p.name} as taken.')));
-                                  },
-                                )).toList(),
+                                const Text('My Recent Vitals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 16),
+                                VitalsSummaryWidget(vitalsList: vitals),
                               ],
                             ),
                           ),
@@ -417,3 +470,6 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
     );
   }
 }
+
+
+

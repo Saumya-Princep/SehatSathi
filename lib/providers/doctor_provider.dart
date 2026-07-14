@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
+
 import '../models/medical_record.dart';
 import '../models/attendance.dart';
 import '../models/inventory_item.dart';
 import '../models/appointment.dart';
 import '../models/health_advisory.dart';
+import '../models/lab_report.dart';
 import 'package:uuid/uuid.dart';
 
 class DoctorProvider with ChangeNotifier {
@@ -17,10 +19,15 @@ class DoctorProvider with ChangeNotifier {
   bool get isCheckedIn => _isCheckedIn;
   String? _attendanceId;
 
+
   DoctorProvider({required this.doctorId, required this.doctorName, required this.phcId});
 
   Stream<List<MedicalRecord>> get doctorRecordsStream {
     return _firestoreService.getDoctorRecords(doctorId);
+  }
+
+  Stream<List<LabReport>> get pendingLabReportsStream {
+    return _firestoreService.getPendingLabReports(doctorId);
   }
 
   Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
@@ -36,8 +43,9 @@ class DoctorProvider with ChangeNotifier {
   }
 
   Future<void> addRecord(String patientId, String diagnosis, String notes, List<PrescriptionItem> prescriptions) async {
+    final recordId = const Uuid().v4();
     final record = MedicalRecord(
-      id: const Uuid().v4(),
+      id: recordId,
       patientId: patientId,
       doctorId: doctorId,
       doctorName: doctorName,
@@ -46,6 +54,7 @@ class DoctorProvider with ChangeNotifier {
       prescriptions: prescriptions,
     );
     await _firestoreService.addMedicalRecord(record);
+    await _firestoreService.linkLabReportsToRecord(patientId, recordId);
   }
   
   Future<void> toggleAttendance() async {
@@ -69,6 +78,7 @@ class DoctorProvider with ChangeNotifier {
     notifyListeners();
   }
 
+
   Stream<List<Appointment>> get liveAppointmentsStream {
     return _firestoreService.getDoctorAppointments(doctorId);
   }
@@ -77,7 +87,10 @@ class DoctorProvider with ChangeNotifier {
     await _firestoreService.updateAppointmentStatus(id, status);
   }
 
-  Future<void> updateRecord(String recordId, String notes, List<PrescriptionItem> prescriptions) async {
+  Future<void> updateRecord(String recordId, String notes, List<PrescriptionItem> prescriptions, {String? patientId}) async {
     await _firestoreService.updateMedicalRecord(recordId, notes, prescriptions);
+    if (patientId != null) {
+      await _firestoreService.linkLabReportsToRecord(patientId, recordId);
+    }
   }
 }

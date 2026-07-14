@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart' as model;
 
@@ -61,7 +65,7 @@ class AuthProvider with ChangeNotifier {
       return _userModel != null;
     } catch (e) {
       _setLoading(false);
-      return false;
+      rethrow;
     }
   }
 
@@ -105,6 +109,11 @@ class AuthProvider with ChangeNotifier {
     String? hospitalRegNo,
     String? pharmacistRegNo,
     String? specialty,
+    int? age,
+    String? gender,
+    String? bloodGroup,
+    String? address,
+    String? emergencyContact,
   }) async {
     _setLoading(true);
     try {
@@ -118,6 +127,11 @@ class AuthProvider with ChangeNotifier {
         hospitalRegNo: hospitalRegNo,
         pharmacistRegNo: pharmacistRegNo,
         specialty: specialty,
+        age: age,
+        gender: gender,
+        bloodGroup: bloodGroup,
+        address: address,
+        emergencyContact: emergencyContact,
       );
       _setLoading(false);
       if (_userModel == null) throw Exception('Failed to register.');
@@ -130,5 +144,37 @@ class AuthProvider with ChangeNotifier {
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
+  }
+
+  Future<void> uploadProfilePicture() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || _userModel == null) return;
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      if (pickedFile == null) return;
+
+      _setLoading(true);
+      final file = File(pickedFile.path);
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('profile_pictures')
+          .child('${user.uid}.jpg');
+
+      await storageRef.putFile(file);
+      final downloadUrl = await storageRef.getDownloadURL();
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({'profilePicUrl': downloadUrl});
+
+      _userModel = await _authService.getUserData(user.uid);
+      notifyListeners();
+    } catch (e) {
+      print('Error uploading profile picture: $e');
+    } finally {
+      _setLoading(false);
+    }
   }
 }
