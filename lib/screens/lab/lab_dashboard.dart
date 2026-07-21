@@ -6,6 +6,8 @@ import '../../models/lab_report.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../auth/login_screen.dart';
+import '../../widgets/language_selector.dart';
+import '../../l10n/app_localizations.dart';
 
 class LabDashboard extends StatefulWidget {
   const LabDashboard({Key? key}) : super(key: key);
@@ -30,6 +32,12 @@ class _LabDashboardState extends State<LabDashboard> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Laboratory Dashboard'),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8.0),
+            child: LanguageSelector(),
+          ),
+        ],
       ),
       drawer: Drawer(
         child: Column(
@@ -62,7 +70,12 @@ class _LabDashboardState extends State<LabDashboard> {
                 );
               },
             ),
-            const Spacer(),
+                          ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(AppLocalizations.of(context)?.language ?? 'Language'),
+                trailing: const LanguageSelector(),
+              ),
+              const Spacer(),
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),

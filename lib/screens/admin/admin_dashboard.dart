@@ -9,6 +9,8 @@ import '../../widgets/alert_banner.dart';
 import '../auth/login_screen.dart';
 import '../../models/health_advisory.dart';
 import '../../models/inventory_item.dart';
+import '../../widgets/language_selector.dart';
+import '../../l10n/app_localizations.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -25,6 +27,7 @@ class AdminDashboard extends StatelessWidget {
         child: Scaffold(
           appBar: AppBar(
             title: const Text('District Health Control'),
+            actions: [],
             bottom: const TabBar(
               indicatorColor: Colors.white,
               labelColor: Colors.white,
@@ -67,7 +70,12 @@ class AdminDashboard extends StatelessWidget {
                     );
                   },
                 ),
-                const Spacer(),
+                              ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(AppLocalizations.of(context)?.language ?? 'Language'),
+                trailing: const LanguageSelector(),
+              ),
+              const Spacer(),
                 const Divider(),
                 ListTile(
                   leading: const Icon(Icons.logout, color: Colors.red),

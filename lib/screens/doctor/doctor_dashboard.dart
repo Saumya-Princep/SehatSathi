@@ -6,6 +6,7 @@ import '../../models/appointment.dart';
 import '../../models/user_model.dart' as model;
 import '../../services/firestore_service.dart';
 import '../auth/login_screen.dart';
+import '../../l10n/app_localizations.dart';
 
 // New Widgets
 import 'widgets/analytics_cards.dart';
@@ -16,6 +17,7 @@ import '../../widgets/health_advisory_carousel.dart';
 import '../../models/health_advisory.dart';
 import '../../models/lab_report.dart';
 import 'package:uuid/uuid.dart';
+import '../../widgets/language_selector.dart';
 
 class DoctorDashboard extends StatelessWidget {
   const DoctorDashboard({Key? key}) : super(key: key);
@@ -77,6 +79,12 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
           return Scaffold(
             appBar: AppBar(
               title: Text(provider.doctorName),
+              actions: const [
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 8.0),
+                  child: LanguageSelector(),
+                ),
+              ],
             ),
             drawer: Drawer(
               child: Column(
@@ -109,7 +117,12 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                       );
                     },
                   ),
-                  const Spacer(),
+                                ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(AppLocalizations.of(context)?.language ?? 'Language'),
+                trailing: const LanguageSelector(),
+              ),
+              const Spacer(),
                   const Divider(),
                   ListTile(
                     leading: const Icon(Icons.logout, color: Colors.red),
@@ -165,6 +178,12 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
             return Scaffold(
               appBar: AppBar(
                 title: Text(provider.doctorName),
+                actions: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0),
+                    child: LanguageSelector(),
+                  ),
+                ],
               ),
           body: LayoutBuilder(
             builder: (context, constraints) {

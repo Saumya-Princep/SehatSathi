@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/patient_provider.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/firestore_service.dart';
 import '../../models/medical_record.dart';
 import '../../models/lab_report.dart';
+import '../../models/user_model.dart';
 
 import '../../models/health_advisory.dart';
 import '../../models/ambulance.dart';
@@ -16,24 +18,28 @@ import '../../widgets/health_advisory_carousel.dart';
 import '../../widgets/ambulance_tracking_card.dart';
 import '../../widgets/vitals_summary_widget.dart';
 import '../auth/login_screen.dart';
+import '../../widgets/language_selector.dart';
 import '../../models/vitals.dart';
 import 'package:geolocator/geolocator.dart';
-
+import 'widgets/add_dependent_dialog.dart';
 class PatientDashboard extends StatelessWidget {
   const PatientDashboard({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final user = authProvider.userModel;
-    final patientId = user?.uid ?? 'mock_patient_id';
-    final phcId = user?.assignedPhcId ?? 'phc_1';
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        final activePatient = authProvider.activePatient;
+        final patientId = activePatient?.uid ?? 'mock_patient_id';
+        final phcId = activePatient?.assignedPhcId ?? 'phc_1';
 
-    return ChangeNotifierProvider(
-      create: (_) => PatientProvider(patientId: patientId, phcId: phcId),
-      child: Scaffold(
+        return ChangeNotifierProvider(
+          key: ValueKey(patientId),
+          create: (_) => PatientProvider(patientId: patientId, phcId: phcId),
+          child: Scaffold(
         appBar: AppBar(
-          title: const Text('My EHR Dashboard'),
+          title: Text(AppLocalizations.of(context)!.myEhrDashboard),
+          actions: [],
         ),
         drawer: Drawer(
           child: Column(
@@ -41,24 +47,83 @@ class PatientDashboard extends StatelessWidget {
               Consumer<AuthProvider>(
                 builder: (context, authProvider, _) {
                   final user = authProvider.userModel;
+                  final activeUser = authProvider.activePatient;
                   return UserAccountsDrawerHeader(
-                    accountName: Text(user?.name ?? 'Patient'),
-                    accountEmail: Text(user?.contact ?? 'Patient Portal'),
+                    accountName: Text(activeUser?.name ?? 'Patient'),
+                    accountEmail: Text(activeUser?.contact ?? 'Patient Portal'),
                     currentAccountPicture: InkWell(
                       onTap: () => authProvider.uploadProfilePicture(),
                       child: CircleAvatar(
                         backgroundColor: Colors.white,
-                        backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
-                        child: user?.profilePicUrl == null ? const Icon(Icons.person, size: 40, color: Colors.blue) : null,
+                        backgroundImage: activeUser?.profilePicUrl != null ? NetworkImage(activeUser!.profilePicUrl!) : null,
+                        child: activeUser?.profilePicUrl == null ? const Icon(Icons.person, size: 40, color: Colors.blue) : null,
                       ),
                     ),
+                  );
+                }
+              ),
+              const Divider(),
+              Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  final mainUser = auth.userModel;
+                  if (mainUser == null) return const SizedBox.shrink();
+                  
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                        child: Text('Family Members', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.person),
+                        title: Text('${mainUser.name} (Me)'),
+                        trailing: auth.activePatient?.uid == mainUser.uid ? const Icon(Icons.check, color: Colors.green) : null,
+                        onTap: () {
+                          auth.switchActivePatient(mainUser);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      StreamBuilder<List<UserModel>>(
+                        stream: FirestoreService().getDependentsStream(mainUser.uid),
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const SizedBox.shrink();
+                          final dependents = snapshot.data!;
+                          return Column(
+                            children: dependents.map((dep) {
+                              return ListTile(
+                                leading: const Icon(Icons.child_care),
+                                title: Text(dep.name),
+                                trailing: auth.activePatient?.uid == dep.uid ? const Icon(Icons.check, color: Colors.green) : null,
+                                onTap: () {
+                                  auth.switchActivePatient(dep);
+                                  Navigator.pop(context);
+                                },
+                              );
+                            }).toList(),
+                          );
+                        }
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.add),
+                        title: const Text('Add Family Member'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          showDialog(
+                            context: context,
+                            builder: (_) => AddDependentDialog(parentId: mainUser.uid),
+                          );
+                        },
+                      ),
+                      const Divider(),
+                    ],
                   );
                 }
               ),
               Consumer<PatientProvider>(
                 builder: (context, provider, _) {
                   return SwitchListTile(
-                    title: const Text('Offline View'),
+                    title: Text(AppLocalizations.of(context)!.offlineView),
                     value: provider.isOffline,
                     onChanged: (_) => provider.toggleOfflineMode(),
                     secondary: const Icon(Icons.cloud_off),
@@ -69,7 +134,7 @@ class PatientDashboard extends StatelessWidget {
                 builder: (context, auth, _) {
                   final isDark = auth.themeMode == ThemeMode.dark;
                   return SwitchListTile(
-                    title: const Text('Dark Mode'),
+                    title: Text(AppLocalizations.of(context)!.darkMode),
                     value: isDark,
                     onChanged: (val) => auth.toggleTheme(val),
                     secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
@@ -80,7 +145,7 @@ class PatientDashboard extends StatelessWidget {
                 builder: (context, provider, _) {
                   return ListTile(
                     leading: const Icon(Icons.folder_shared),
-                    title: const Text('All Medical Records'),
+                    title: Text(AppLocalizations.of(context)!.allMedicalRecords),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -93,11 +158,16 @@ class PatientDashboard extends StatelessWidget {
                   );
                 }
               ),
+                            ListTile(
+                leading: const Icon(Icons.language),
+                title: Text(AppLocalizations.of(context)?.language ?? 'Language'),
+                trailing: const LanguageSelector(),
+              ),
               const Spacer(),
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                title: Text(AppLocalizations.of(context)!.logout, style: const TextStyle(color: Colors.red)),
                 onTap: () {
                   authProvider.signOut();
                   Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
@@ -106,6 +176,62 @@ class PatientDashboard extends StatelessWidget {
               const SizedBox(height: 16),
             ],
           ),
+        ),
+        floatingActionButton: Consumer<PatientProvider>(
+          builder: (context, provider, _) {
+            return FloatingActionButton.extended(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.emergency),
+              label: const Text('Ambulance Track'),
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Ambulance Track'),
+                    content: const Text('Call an ambulance to your current location?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                        onPressed: () => Navigator.pop(context, true), 
+                        child: const Text('Confirm')
+                      ),
+                    ],
+                  ),
+                );
+                
+                if (confirm == true) {
+                  try {
+                    LocationPermission permission = await Geolocator.checkPermission();
+                    if (permission == LocationPermission.denied) {
+                      permission = await Geolocator.requestPermission();
+                      if (permission == LocationPermission.denied) {
+                        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permission denied')));
+                        return;
+                      }
+                    }
+                    
+                    if (permission == LocationPermission.deniedForever) {
+                      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location permission permanently denied')));
+                      return;
+                    }
+                    
+                    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+                    await provider.requestEmergencyAmbulance(position.latitude, position.longitude);
+                    
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ambulance requested successfully!')));
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                    }
+                  }
+                }
+              },
+            );
+          },
         ),
         body: Consumer<PatientProvider>(
           builder: (context, provider, child) {
@@ -203,15 +329,15 @@ class PatientDashboard extends StatelessWidget {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       child: ListTile(
                         leading: Icon(Icons.queue, size: 36, color: Theme.of(context).colorScheme.primary),
-                        title: const Text('Join Doctor Queue', style: TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: const Text('Request a consultation for a new or existing issue.'),
+                        title: Text(AppLocalizations.of(context)!.joinDoctorQueue, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text(AppLocalizations.of(context)!.requestConsultation),
                         trailing: const Icon(Icons.arrow_forward_ios),
                         onTap: () {
                           showDialog(
                             context: context,
                             builder: (_) => JoinQueueDialog(
                               provider: provider,
-                              patientName: user?.name ?? 'Unknown Patient',
+                              patientName: authProvider.activePatient?.name ?? 'Unknown Patient',
                             ),
                           );
                         },
@@ -238,7 +364,7 @@ class PatientDashboard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('My Recent Vitals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                Text(AppLocalizations.of(context)!.myRecentVitals, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                                 const SizedBox(height: 16),
                                 VitalsSummaryWidget(vitalsList: vitals),
                               ],
@@ -254,9 +380,9 @@ class PatientDashboard extends StatelessWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
-                          'My Medical Records',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Text(
+                          AppLocalizations.of(context)!.myMedicalRecords,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         TextButton(
                           onPressed: () {
@@ -267,7 +393,7 @@ class PatientDashboard extends StatelessWidget {
                               ),
                             );
                           },
-                          child: const Text('More'),
+                          child: Text(AppLocalizations.of(context)!.more),
                         ),
                       ],
                     ),
@@ -284,17 +410,17 @@ class PatientDashboard extends StatelessWidget {
                       }
                       final allRecords = snapshot.data ?? [];
                       if (allRecords.isEmpty) {
-                        return const Center(
+                        return Center(
                           child: Padding(
-                            padding: EdgeInsets.all(32.0),
+                            padding: const EdgeInsets.all(32.0),
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.folder_open, size: 64, color: Colors.grey),
-                                SizedBox(height: 12),
+                                const Icon(Icons.folder_open, size: 64, color: Colors.grey),
+                                const SizedBox(height: 12),
                                 Text(
-                                  'No medical records found.',
-                                  style: TextStyle(color: Colors.grey, fontSize: 16),
+                                  AppLocalizations.of(context)!.noMedicalRecords,
+                                  style: const TextStyle(color: Colors.grey, fontSize: 16),
                                 ),
                               ],
                             ),
@@ -321,53 +447,10 @@ class PatientDashboard extends StatelessWidget {
             );
           },
         ),
-        floatingActionButton: Builder(
-          builder: (fabContext) => FloatingActionButton.extended(
-            onPressed: () async {
-              final provider = Provider.of<PatientProvider>(fabContext, listen: false);
-            try {
-              LocationPermission permission = await Geolocator.checkPermission();
-              if (permission == LocationPermission.denied) {
-                permission = await Geolocator.requestPermission();
-                if (permission == LocationPermission.denied) {
-                  throw Exception('Location permissions are denied');
-                }
-              }
-              if (permission == LocationPermission.deniedForever) {
-                throw Exception('Location permissions are permanently denied.');
-              }
-
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Fetching current location...')),
-                );
-              }
-
-              Position position = await Geolocator.getCurrentPosition(
-                desiredAccuracy: LocationAccuracy.high,
-              );
-
-              await provider.requestEmergencyAmbulance(position.latitude, position.longitude);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Emergency Ambulance Requested! Dispatching vehicle...')),
-                );
-              }
-            } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
-                );
-              }
-            }
-          },
-          backgroundColor: Theme.of(context).colorScheme.error,
-          icon: const Icon(Icons.emergency, color: Colors.white),
-          label: const Text('Request Ambulance', style: TextStyle(color: Colors.white)),
-        ),
-        ),
       ),
     );
+  },
+);
   }
 
 

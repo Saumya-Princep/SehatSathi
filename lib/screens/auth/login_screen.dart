@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../models/user_model.dart';
 import 'role_auth_screen.dart';
+import '../../l10n/app_localizations.dart';
+import '../../widgets/language_selector.dart';
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -24,6 +26,10 @@ class LoginScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const Align(
+                  alignment: Alignment.topRight,
+                  child: LanguageSelector(),
+                ),
                 Icon(
                   Icons.health_and_safety,
                   size: 100,
@@ -31,46 +37,46 @@ class LoginScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'SehatSathi',
+                  AppLocalizations.of(context)?.appTitle ?? 'SehatSathi',
                   style: Theme.of(context).textTheme.headlineLarge?.copyWith(
                         color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.bold,
                       ),
                 ),
                 const SizedBox(height: 8),
-                const Text('Please select your portal to continue'),
+                Text(AppLocalizations.of(context)?.selectPortal ?? 'Please select your portal to continue'),
                 const SizedBox(height: 48),
                 _buildRoleCard(
                   context,
-                  title: 'Patient Portal',
+                  title: AppLocalizations.of(context)?.patientPortal ?? 'Patient Portal',
                   icon: Icons.personal_injury,
                   role: UserRole.patient,
                 ),
                 const SizedBox(height: 16),
                 _buildRoleCard(
                   context,
-                  title: 'Doctor Portal',
+                  title: AppLocalizations.of(context)?.doctorPortal ?? 'Doctor Portal',
                   icon: Icons.medical_services,
                   role: UserRole.doctor,
                 ),
                 const SizedBox(height: 16),
                 _buildRoleCard(
                   context,
-                  title: 'Admin Portal',
+                  title: AppLocalizations.of(context)?.adminPortal ?? 'Admin Portal',
                   icon: Icons.admin_panel_settings,
                   role: UserRole.admin,
                 ),
                 const SizedBox(height: 16),
                 _buildRoleCard(
                   context,
-                  title: 'Pharmacist Portal',
+                  title: AppLocalizations.of(context)?.pharmacistPortal ?? 'Pharmacist Portal',
                   icon: Icons.local_pharmacy,
                   role: UserRole.pharmacist,
                 ),
                 const SizedBox(height: 16),
                 _buildRoleCard(
                   context,
-                  title: 'Lab Tech Portal',
+                  title: AppLocalizations.of(context)?.labTechPortal ?? 'Lab Tech Portal',
                   icon: Icons.science,
                   role: UserRole.lab_technician,
                 ),

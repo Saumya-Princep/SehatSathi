@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'theme.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'providers/auth_provider.dart';
+import 'providers/language_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/patient/patient_dashboard.dart';
 import 'screens/doctor/doctor_dashboard.dart';
@@ -31,15 +34,32 @@ class SehatSathiApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => LanguageProvider()),
       ],
-      child: Consumer<AuthProvider>(
-        builder: (context, authProvider, _) {
+      child: Consumer2<AuthProvider, LanguageProvider>(
+        builder: (context, authProvider, languageProvider, _) {
           return MaterialApp(
             title: 'SehatSathi',
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: authProvider.themeMode,
             debugShowCheckedModeBanner: false,
+            localizationsDelegates: [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('en', ''),
+              Locale('hi', ''),
+              Locale('bn', ''),
+              Locale('te', ''),
+              Locale('mr', ''),
+              Locale('ta', ''),
+              Locale('gu', ''),
+            ],
+            locale: languageProvider.currentLocale,
             home: const InitialRouteHandler(),
           );
         },

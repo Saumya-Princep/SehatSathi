@@ -275,6 +275,16 @@ class FirestoreService {
   }
 
   // Users / Doctors
+  Future<void> addDependent(UserModel dependent) async {
+    await _db.collection('users').doc(dependent.uid).set(dependent.toMap());
+  }
+
+  Stream<List<UserModel>> getDependentsStream(String parentId) {
+    return _db.collection('users').where('parentId', isEqualTo: parentId).snapshots().map(
+      (snapshot) => snapshot.docs.map((doc) => UserModel.fromMap(doc.data(), doc.id)).toList()
+    );
+  }
+
   Stream<List<UserModel>> getDoctorsStream() {
     return _db.collection('users')
         .where('role', isEqualTo: 'doctor')

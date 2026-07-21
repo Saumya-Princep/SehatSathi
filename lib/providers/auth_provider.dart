@@ -11,13 +11,20 @@ import '../models/user_model.dart' as model;
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
   model.UserModel? _userModel;
+  model.UserModel? _activeDependent;
   bool _isLoading = false;
   ThemeMode _themeMode = ThemeMode.light;
 
   model.UserModel? get userModel => _userModel;
+  model.UserModel? get activePatient => _activeDependent ?? _userModel;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _userModel != null;
   ThemeMode get themeMode => _themeMode;
+
+  void switchActivePatient(model.UserModel? dependent) {
+    _activeDependent = dependent;
+    notifyListeners();
+  }
 
   AuthProvider() {
     _initAuthListener();

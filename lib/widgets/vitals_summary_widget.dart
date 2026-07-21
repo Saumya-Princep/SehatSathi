@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/vitals.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../l10n/app_localizations.dart';
 
 class VitalsSummaryWidget extends StatelessWidget {
   final List<Vitals> vitalsList;
@@ -24,15 +25,15 @@ class VitalsSummaryWidget extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: _buildVitalCard(context, 'BP', '${latest.bloodPressureSystolic}/${latest.bloodPressureDiastolic}', isHighBP ? Colors.red : Colors.green, Icons.favorite)),
+            Expanded(child: _buildVitalCard(context, AppLocalizations.of(context)!.bp, '${latest.bloodPressureSystolic}/${latest.bloodPressureDiastolic}', isHighBP ? Colors.red : Colors.green, Icons.favorite)),
             const SizedBox(width: 8),
-            Expanded(child: _buildVitalCard(context, 'Heart Rate', '${latest.heartRate}', Colors.blue, Icons.monitor_heart)),
+            Expanded(child: _buildVitalCard(context, AppLocalizations.of(context)!.heartRate, '${latest.heartRate}', Colors.blue, Icons.monitor_heart)),
             const SizedBox(width: 8),
-            Expanded(child: _buildVitalCard(context, 'Weight', '${latest.weight}', Colors.purple, Icons.scale)),
+            Expanded(child: _buildVitalCard(context, AppLocalizations.of(context)!.weight, '${latest.weight}', Colors.purple, Icons.scale)),
           ],
         ),
         const SizedBox(height: 16),
-        const Text('Recent Trends', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        Text(AppLocalizations.of(context)!.recentTrends, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 16),
         SizedBox(
           height: 150,

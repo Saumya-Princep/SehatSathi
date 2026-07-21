@@ -4,6 +4,7 @@ import '../../models/medical_record.dart';
 import 'package:intl/intl.dart';
 import '../../models/lab_report.dart';
 import '../../services/firestore_service.dart';
+import '../../l10n/app_localizations.dart';
 
 class RecordCard extends StatelessWidget {
   final MedicalRecord record;
@@ -39,14 +40,14 @@ class RecordCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text('Diagnosis: ${record.diagnosis}', style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.w600)),
+            Text('${AppLocalizations.of(context)!.diagnosis}: ${record.diagnosis}', style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontWeight: FontWeight.w600)),
             if (record.notes.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text('Notes: ${record.notes}', style: const TextStyle(fontSize: 14)),
+              Text('${AppLocalizations.of(context)!.notes}: ${record.notes}', style: const TextStyle(fontSize: 14)),
             ],
             if (record.prescriptions.isNotEmpty) ...[
               const SizedBox(height: 12),
-              const Text('Prescriptions:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('${AppLocalizations.of(context)!.prescriptions}:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 4),
               ...record.prescriptions.map((p) => Padding(
                 padding: const EdgeInsets.only(left: 4.0, top: 4.0, bottom: 4.0),
@@ -76,7 +77,7 @@ class RecordCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        p.isDispensed ? 'Dispensed' : 'Pending',
+                        p.isDispensed ? AppLocalizations.of(context)!.dispensed : AppLocalizations.of(context)!.pending,
                         style: TextStyle(
                           fontSize: 10,
                           color: p.isDispensed ? Colors.green : Colors.orange,
@@ -120,23 +121,23 @@ class RecordCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text('Clinical Encounter Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                  Text(AppLocalizations.of(context)!.clinicalEncounterDetails, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 16),
                   
-                  _buildSectionTitle(context, 'Doctor'),
+                  _buildSectionTitle(context, AppLocalizations.of(context)!.doctor),
                   Text(record.doctorName.startsWith('Dr.') ? record.doctorName : 'Dr. ${record.doctorName}', style: const TextStyle(fontSize: 16)),
                   if (record.date != null) ...[
                     const SizedBox(height: 4),
-                    Text('Date: ${DateFormat('MMMM dd, yyyy - hh:mm a').format(record.date!)}', style: const TextStyle(color: Colors.grey)),
+                    Text('${AppLocalizations.of(context)!.date}: ${DateFormat('MMMM dd, yyyy - hh:mm a').format(record.date!)}', style: const TextStyle(color: Colors.grey)),
                   ],
                   const Divider(height: 32),
 
-                  _buildSectionTitle(context, 'Diagnosis / Impression'),
+                  _buildSectionTitle(context, AppLocalizations.of(context)!.diagnosisImpression),
                   Text(record.diagnosis, style: const TextStyle(fontSize: 16)),
                   const Divider(height: 32),
 
                   if (record.allergies.isNotEmpty) ...[
-                    _buildSectionTitle(context, 'Allergies'),
+                    _buildSectionTitle(context, AppLocalizations.of(context)!.allergies),
                     Wrap(
                       spacing: 8,
                       children: record.allergies.map((a) => Chip(
@@ -148,13 +149,13 @@ class RecordCard extends StatelessWidget {
                     const Divider(height: 32),
                   ],
 
-                  _buildSectionTitle(context, 'Progress Notes & Treatment Plan'),
-                  Text(record.notes.isEmpty ? 'No clinical notes provided.' : record.notes, style: const TextStyle(fontSize: 16, height: 1.5)),
+                  _buildSectionTitle(context, AppLocalizations.of(context)!.progressNotesTreatmentPlan),
+                  Text(record.notes.isEmpty ? AppLocalizations.of(context)!.noClinicalNotes : record.notes, style: const TextStyle(fontSize: 16, height: 1.5)),
                   const Divider(height: 32),
 
-                  _buildSectionTitle(context, 'Prescribed Medications'),
+                  _buildSectionTitle(context, AppLocalizations.of(context)!.prescribedMedications),
                   if (record.prescriptions.isEmpty)
-                    const Text('No medications prescribed during this visit.', style: TextStyle(fontStyle: FontStyle.italic))
+                    Text(AppLocalizations.of(context)!.noMedications, style: TextStyle(fontStyle: FontStyle.italic))
                   else
                     ...record.prescriptions.map((p) => ListTile(
                       contentPadding: EdgeInsets.zero,
@@ -163,15 +164,15 @@ class RecordCard extends StatelessWidget {
                         child: const Icon(Icons.medication),
                       ),
                       title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('Dosage: ${p.dosage}\nQuantity: ${p.quantity}'),
+                      subtitle: Text('${AppLocalizations.of(context)!.dosage}: ${p.dosage}\n${AppLocalizations.of(context)!.quantity}: ${p.quantity}'),
                       trailing: Chip(
-                        label: Text(p.isDispensed ? 'Dispensed' : 'Pending', style: const TextStyle(fontSize: 12)),
+                        label: Text(p.isDispensed ? AppLocalizations.of(context)!.dispensed : AppLocalizations.of(context)!.pending, style: const TextStyle(fontSize: 12)),
                         backgroundColor: p.isDispensed ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
                         labelStyle: TextStyle(color: p.isDispensed ? Colors.green : Colors.orange, fontWeight: FontWeight.bold),
                       ),
                     )),
                   const Divider(height: 32),
-                  _buildSectionTitle(context, 'Laboratory Reports'),
+                  _buildSectionTitle(context, AppLocalizations.of(context)!.laboratoryReports),
                   StreamBuilder<List<LabReport>>(
                     stream: FirestoreService().getLabReportsForRecord(record.id),
                     builder: (context, snapshot) {
@@ -180,7 +181,7 @@ class RecordCard extends StatelessWidget {
                       }
                       final reports = snapshot.data ?? [];
                       if (reports.isEmpty) {
-                        return const Text('No lab reports attached to this encounter.', style: TextStyle(fontStyle: FontStyle.italic));
+                        return Text(AppLocalizations.of(context)!.noLabReports, style: TextStyle(fontStyle: FontStyle.italic));
                       }
                       return Column(
                         children: reports.map((r) {
@@ -194,8 +195,8 @@ class RecordCard extends StatelessWidget {
                               title: Text(r.testName, style: const TextStyle(fontWeight: FontWeight.bold)),
                               subtitle: Text(
                                 r.timestamp != null 
-                                  ? 'Completed on ${DateFormat('MMM dd, yyyy - hh:mm a').format(r.timestamp!)}' 
-                                  : 'Completed'
+                                  ? '${AppLocalizations.of(context)!.completedOn} ${DateFormat('MMM dd, yyyy - hh:mm a').format(r.timestamp!)}' 
+                                  : AppLocalizations.of(context)!.completed
                               ),
                               trailing: const Icon(Icons.check_circle, color: Colors.green),
                               children: [
@@ -257,7 +258,7 @@ class RecordCard extends StatelessWidget {
                                           ),
                                         ),
                                       if (r.resultText != null && r.resultText!.isNotEmpty) ...[
-                                        const Text('Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        Text('${AppLocalizations.of(context)!.notes}:', style: const TextStyle(fontWeight: FontWeight.bold)),
                                         const SizedBox(height: 4),
                                         Text(r.resultText!),
                                       ]

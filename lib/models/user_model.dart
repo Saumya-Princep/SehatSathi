@@ -22,6 +22,7 @@ class UserModel {
   final String? address;
   final String? emergencyContact;
   final String? profilePicUrl;
+  final String? parentId; // Used for dependent family members
 
   UserModel({
     required this.uid,
@@ -41,6 +42,7 @@ class UserModel {
     this.address,
     this.emergencyContact,
     this.profilePicUrl,
+    this.parentId,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> data, String documentId) {
@@ -72,6 +74,7 @@ class UserModel {
       address: data['address'],
       emergencyContact: data['emergencyContact'],
       profilePicUrl: data['profilePicUrl'],
+      parentId: data['parentId'],
     );
   }
 
@@ -93,6 +96,7 @@ class UserModel {
       'address': address,
       'emergencyContact': emergencyContact,
       'profilePicUrl': profilePicUrl,
+      'parentId': parentId,
     };
   }
 }
