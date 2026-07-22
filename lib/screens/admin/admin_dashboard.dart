@@ -105,16 +105,19 @@ class AdminDashboard extends StatelessWidget {
               ],
             ),
           ),
-          body: Consumer<AdminProvider>(
-            builder: (context, provider, child) {
-              return TabBarView(
-                children: [
-                  _buildEpidemiologyTab(context, provider),
-                  _buildStaffAlertsTab(context, provider),
-                  _buildAmbulanceTab(context, provider),
-                ],
-              );
-            },
+          body: SafeArea(
+            bottom: true,
+            child: Consumer<AdminProvider>(
+              builder: (context, provider, child) {
+                return TabBarView(
+                  children: [
+                    _buildEpidemiologyTab(context, provider),
+                    _buildStaffAlertsTab(context, provider),
+                    _buildAmbulanceTab(context, provider),
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),

@@ -59,7 +59,7 @@ class PatientProvider with ChangeNotifier {
     await _firestoreService.cancelAppointment(appointmentId);
   }
 
-  Future<Map<String, dynamic>> joinDoctorQueue(String patientName, String reason, String phcId) async {
+  Future<Map<String, dynamic>> joinDoctorQueue(String patientName, int patientAge, String reason, String phcId) async {
     // Check if patient is already in the queue for the exact same reason
     final activeAptsSnapshot = await _firestoreService.getPatientActiveAppointmentsOnce(patientId);
     for (var apt in activeAptsSnapshot) {
@@ -86,7 +86,7 @@ class PatientProvider with ChangeNotifier {
       id: const Uuid().v4(),
       patientId: patientId,
       patientName: patientName,
-      patientAge: 30, // Mocked age for now
+      patientAge: patientAge,
       doctorId: doctor['id'],
       doctorName: docName,
       time: DateTime.now(),

@@ -191,7 +191,9 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                 title: FittedBox(fit: BoxFit.scaleDown, child: Text(provider.doctorName)),
 
               ),
-          body: LayoutBuilder(
+          body: SafeArea(
+            bottom: true,
+            child: LayoutBuilder(
             builder: (context, constraints) {
               final isLargeScreen = constraints.maxWidth > 800;
 
@@ -261,6 +263,7 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                 return mainContent;
               }
             },
+          ),
           ),
               drawer: Drawer(
                 child: Column(

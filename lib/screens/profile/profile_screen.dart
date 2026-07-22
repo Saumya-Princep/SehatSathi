@@ -34,7 +34,9 @@ class ProfileScreen extends StatelessWidget {
               )
             ],
           ),
-          body: ListView(
+          body: SafeArea(
+            bottom: true,
+            child: ListView(
             padding: const EdgeInsets.all(16.0),
             children: [
               Center(
@@ -89,6 +91,7 @@ class ProfileScreen extends StatelessWidget {
                 _buildInfoTile('Assigned PHC ID', currentUser.assignedPhcId ?? 'Not specified'),
               ],
             ],
+          ),
           ),
         );
       }

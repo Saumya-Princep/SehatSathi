@@ -249,7 +249,9 @@ class PatientDashboard extends StatelessWidget {
             );
           },
         ),
-        body: Consumer<PatientProvider>(
+        body: SafeArea(
+          bottom: true,
+          child: Consumer<PatientProvider>(
           builder: (context, provider, child) {
             return SingleChildScrollView(
               child: Column(
@@ -354,6 +356,7 @@ class PatientDashboard extends StatelessWidget {
                             builder: (_) => JoinQueueDialog(
                               provider: provider,
                               patientName: authProvider.activePatient?.name ?? 'Unknown Patient',
+                              patientAge: authProvider.activePatient?.age ?? 0,
                             ),
                           );
                         },
@@ -463,6 +466,7 @@ class PatientDashboard extends StatelessWidget {
             );
           },
         ),
+        ),
       ),
     );
   },
@@ -475,7 +479,8 @@ class PatientDashboard extends StatelessWidget {
 class JoinQueueDialog extends StatefulWidget {
   final PatientProvider provider;
   final String patientName;
-  const JoinQueueDialog({Key? key, required this.provider, required this.patientName}) : super(key: key);
+  final int patientAge;
+  const JoinQueueDialog({Key? key, required this.provider, required this.patientName, required this.patientAge}) : super(key: key);
 
   @override
   _JoinQueueDialogState createState() => _JoinQueueDialogState();
@@ -564,7 +569,7 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
             }
             setState(() => _isLoading = true);
             try {
-              final result = await widget.provider.joinDoctorQueue(widget.patientName, _reasonCtrl.text.trim(), _selectedPhcId!);
+              final result = await widget.provider.joinDoctorQueue(widget.patientName, widget.patientAge, _reasonCtrl.text.trim(), _selectedPhcId!);
               if (mounted) {
                 Navigator.pop(context); // Close the entry dialog
                 _showSuccessDialog(context, result);

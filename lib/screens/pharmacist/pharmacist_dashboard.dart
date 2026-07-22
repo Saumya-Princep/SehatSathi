@@ -130,7 +130,9 @@ class PharmacistDashboard extends StatelessWidget {
         icon: const Icon(Icons.add),
         label: const Text('Add Medicine'),
       ),
-      body: Column(
+      body: SafeArea(
+        bottom: true,
+        child: Column(
         children: [
           StreamBuilder<List<HealthAdvisory>>(
             stream: provider.activeAdvisoriesStream,
@@ -226,6 +228,7 @@ class PharmacistDashboard extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -100,7 +100,9 @@ class _LabDashboardState extends State<LabDashboard> {
           ],
         ),
       ),
-      body: StreamBuilder<List<LabReport>>(
+      body: SafeArea(
+        bottom: true,
+        child: StreamBuilder<List<LabReport>>(
         stream: _firestoreService.getPendingLabReportsForPhc(phcId),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -160,6 +162,7 @@ class _LabDashboardState extends State<LabDashboard> {
             },
           );
         },
+      ),
       ),
     );
   }
@@ -271,15 +274,16 @@ class _UploadResultDialogState extends State<_UploadResultDialog> {
                 child: const Center(child: Text('No Image Selected', style: TextStyle(color: Colors.grey))),
               ),
             const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 16,
+              runSpacing: 16,
               children: [
                 ElevatedButton.icon(
                   onPressed: () => _pickImage(ImageSource.camera),
                   icon: const Icon(Icons.camera_alt),
                   label: const Text('Camera'),
                 ),
-                const SizedBox(width: 16),
                 ElevatedButton.icon(
                   onPressed: () => _pickImage(ImageSource.gallery),
                   icon: const Icon(Icons.photo_library),
@@ -289,11 +293,12 @@ class _UploadResultDialogState extends State<_UploadResultDialog> {
             ),
             const SizedBox(height: 24),
             const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 TextButton(onPressed: _isSaving ? null : () => Navigator.pop(context), child: const Text('Cancel')),
-                const SizedBox(width: 8),
                 ElevatedButton(
                   onPressed: _isSaving ? null : _submitResult,
                   child: _isSaving ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Submit Upload'),

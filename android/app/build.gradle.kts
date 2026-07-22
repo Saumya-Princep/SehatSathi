@@ -64,3 +64,11 @@ android {
 flutter {
     source = "../.."
 }
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            output.outputFileName.set("SehatSathi.apk")
+        }
+    }
+}
