@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../utils/image_utils.dart';
+
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/admin_provider.dart';
@@ -12,6 +14,7 @@ import '../../models/inventory_item.dart';
 import '../../widgets/language_selector.dart';
 import '../../l10n/app_localizations.dart';
 import '../profile/edit_profile_screen.dart';
+import '../profile/profile_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -27,7 +30,7 @@ class AdminDashboard extends StatelessWidget {
         length: 3,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('District Health Control'),
+            title: const FittedBox(fit: BoxFit.scaleDown, child: Text('District Health Control')),
             actions: [],
             bottom: const TabBar(
               indicatorColor: Colors.white,
@@ -46,33 +49,31 @@ class AdminDashboard extends StatelessWidget {
                 Consumer<AuthProvider>(
                   builder: (context, authProvider, _) {
                     final user = authProvider.userModel;
-                    return UserAccountsDrawerHeader(
+                    return GestureDetector(
+                      onTap: () {
+                        final u = authProvider.userModel;
+                        if (u != null) {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen(user: u)),
+                          );
+                        }
+                      },
+                      child: UserAccountsDrawerHeader(
                       accountName: Text(user?.name ?? 'Admin'),
                       accountEmail: Text(user?.contact ?? 'Admin Portal'),
                       currentAccountPicture: InkWell(
                         onTap: () => authProvider.uploadProfilePicture(),
                         child: CircleAvatar(
                           backgroundColor: Colors.white,
-                          backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                          backgroundImage: user?.profilePicUrl != null ? getProfileImageProvider(user!.profilePicUrl!) : null,
                           child: user?.profilePicUrl == null ? const Icon(Icons.admin_panel_settings, size: 40, color: Colors.blue) : null,
                         ),
                       ),
+                    ),
                     );
                   }
-                ),
-                ListTile(
-                  leading: const Icon(Icons.edit),
-                  title: const Text('Edit Profile'),
-                  onTap: () {
-                    final user = context.read<AuthProvider>().userModel;
-                    if (user != null) {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
-                      );
-                    }
-                  },
                 ),
                 Consumer<AuthProvider>(
                   builder: (context, auth, _) {
@@ -80,7 +81,7 @@ class AdminDashboard extends StatelessWidget {
                     return SwitchListTile(
                       title: const Text('Dark Mode'),
                       value: isDark,
-                      onChanged: (val) => auth.toggleTheme(val),
+                      onChanged: (val) => auth.setThemeMode(val),
                       secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                     );
                   },

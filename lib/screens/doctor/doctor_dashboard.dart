@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../utils/image_utils.dart';
+
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/doctor_provider.dart';
@@ -19,6 +21,7 @@ import '../../models/lab_report.dart';
 import 'package:uuid/uuid.dart';
 import '../../widgets/language_selector.dart';
 import '../profile/edit_profile_screen.dart';
+import '../profile/profile_screen.dart';
 
 class DoctorDashboard extends StatelessWidget {
   const DoctorDashboard({Key? key}) : super(key: key);
@@ -79,13 +82,8 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
         if (!isPresent) {
           return Scaffold(
             appBar: AppBar(
-              title: Text(provider.doctorName),
-              actions: const [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0),
-                  child: LanguageSelector(),
-                ),
-              ],
+              title: FittedBox(fit: BoxFit.scaleDown, child: Text(provider.doctorName)),
+
             ),
             drawer: Drawer(
               child: Column(
@@ -93,33 +91,31 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
                       final docModel = authProvider.userModel;
-                      return UserAccountsDrawerHeader(
+                      return GestureDetector(
+                      onTap: () {
+                        final u = authProvider.userModel;
+                        if (u != null) {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen(user: u)),
+                          );
+                        }
+                      },
+                      child: UserAccountsDrawerHeader(
                         accountName: Text(docModel?.name ?? 'Doctor'),
                         accountEmail: Text(docModel?.contact ?? 'Doctor Portal'),
                         currentAccountPicture: InkWell(
                           onTap: () => authProvider.uploadProfilePicture(),
                           child: CircleAvatar(
                             backgroundColor: Colors.white,
-                            backgroundImage: docModel?.profilePicUrl != null ? NetworkImage(docModel!.profilePicUrl!) : null,
+                            backgroundImage: docModel?.profilePicUrl != null ? getProfileImageProvider(docModel!.profilePicUrl!) : null,
                             child: docModel?.profilePicUrl == null ? const Icon(Icons.medical_services, size: 40, color: Colors.blue) : null,
                           ),
                         ),
-                      );
+                      ),
+                    );
                     }
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.edit),
-                    title: const Text('Edit Profile'),
-                    onTap: () {
-                      final user = context.read<AuthProvider>().userModel;
-                      if (user != null) {
-                        Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
-                        );
-                      }
-                    },
                   ),
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
@@ -127,7 +123,7 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                       return SwitchListTile(
                         title: const Text('Dark Mode'),
                         value: isDark,
-                        onChanged: (val) => auth.toggleTheme(val),
+                        onChanged: (val) => auth.setThemeMode(val),
                         secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                       );
                     },
@@ -192,13 +188,8 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
 
             return Scaffold(
               appBar: AppBar(
-                title: Text(provider.doctorName),
-                actions: const [
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8.0),
-                    child: LanguageSelector(),
-                  ),
-                ],
+                title: FittedBox(fit: BoxFit.scaleDown, child: Text(provider.doctorName)),
+
               ),
           body: LayoutBuilder(
             builder: (context, constraints) {
@@ -277,33 +268,31 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, _) {
                         final docModel = authProvider.userModel;
-                        return UserAccountsDrawerHeader(
+                        return GestureDetector(
+                      onTap: () {
+                        final u = authProvider.userModel;
+                        if (u != null) {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen(user: u)),
+                          );
+                        }
+                      },
+                      child: UserAccountsDrawerHeader(
                           accountName: Text(docModel?.name ?? 'Doctor'),
                           accountEmail: Text(docModel?.contact ?? 'Doctor Portal'),
                           currentAccountPicture: InkWell(
                             onTap: () => authProvider.uploadProfilePicture(),
                             child: CircleAvatar(
                               backgroundColor: Colors.white,
-                              backgroundImage: docModel?.profilePicUrl != null ? NetworkImage(docModel!.profilePicUrl!) : null,
+                              backgroundImage: docModel?.profilePicUrl != null ? getProfileImageProvider(docModel!.profilePicUrl!) : null,
                               child: docModel?.profilePicUrl == null ? const Icon(Icons.medical_services, size: 40, color: Colors.blue) : null,
                             ),
                           ),
-                        );
+                        ),
+                    );
                       }
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.edit),
-                      title: const Text('Edit Profile'),
-                      onTap: () {
-                        final user = context.read<AuthProvider>().userModel;
-                        if (user != null) {
-                          Navigator.pop(context);
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
-                          );
-                        }
-                      },
                     ),
                     Consumer<AuthProvider>(
                       builder: (context, auth, _) {
@@ -311,7 +300,7 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                         return SwitchListTile(
                           title: const Text('Dark Mode'),
                           value: isDark,
-                          onChanged: (val) => auth.toggleTheme(val),
+                          onChanged: (val) => auth.setThemeMode(val),
                           secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                         );
                       },

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../utils/image_utils.dart';
+
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/patient_provider.dart';
@@ -23,6 +25,7 @@ import '../../models/vitals.dart';
 import 'package:geolocator/geolocator.dart';
 import 'widgets/add_dependent_dialog.dart';
 import '../profile/edit_profile_screen.dart';
+import '../profile/profile_screen.dart';
 class PatientDashboard extends StatelessWidget {
   const PatientDashboard({Key? key}) : super(key: key);
 
@@ -39,7 +42,7 @@ class PatientDashboard extends StatelessWidget {
           create: (_) => PatientProvider(patientId: patientId, phcId: phcId),
           child: Scaffold(
         appBar: AppBar(
-          title: Text(AppLocalizations.of(context)!.myEhrDashboard),
+          title: FittedBox(fit: BoxFit.scaleDown, child: Text(AppLocalizations.of(context)!.myEhrDashboard)),
           actions: [],
         ),
         drawer: Drawer(
@@ -49,33 +52,31 @@ class PatientDashboard extends StatelessWidget {
                 builder: (context, authProvider, _) {
                   final user = authProvider.userModel;
                   final activeUser = authProvider.activePatient;
-                  return UserAccountsDrawerHeader(
-                    accountName: Text(activeUser?.name ?? 'Patient'),
-                    accountEmail: Text(activeUser?.contact ?? 'Patient Portal'),
-                    currentAccountPicture: InkWell(
-                      onTap: () => authProvider.uploadProfilePicture(),
-                      child: CircleAvatar(
-                        backgroundColor: Colors.white,
-                        backgroundImage: activeUser?.profilePicUrl != null ? NetworkImage(activeUser!.profilePicUrl!) : null,
-                        child: activeUser?.profilePicUrl == null ? const Icon(Icons.person, size: 40, color: Colors.blue) : null,
+                  return GestureDetector(
+                    onTap: () {
+                      final u = authProvider.activePatient;
+                      if (u != null) {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ProfileScreen(user: u)),
+                        );
+                      }
+                    },
+                    child: UserAccountsDrawerHeader(
+                      accountName: Text(activeUser?.name ?? 'Patient'),
+                      accountEmail: Text(activeUser?.contact ?? 'Patient Portal'),
+                      currentAccountPicture: InkWell(
+                        onTap: () => authProvider.uploadProfilePicture(),
+                        child: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          backgroundImage: activeUser?.profilePicUrl != null ? getProfileImageProvider(activeUser!.profilePicUrl!) : null,
+                          child: activeUser?.profilePicUrl == null ? const Icon(Icons.person, size: 40, color: Colors.blue) : null,
+                        ),
                       ),
                     ),
                   );
                 }
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit),
-                title: const Text('Edit Profile'),
-                onTap: () {
-                  final user = context.read<AuthProvider>().activePatient;
-                  if (user != null) {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
-                    );
-                  }
-                },
               ),
               const Divider(),
               Consumer<AuthProvider>(
@@ -151,7 +152,7 @@ class PatientDashboard extends StatelessWidget {
                   return SwitchListTile(
                     title: Text(AppLocalizations.of(context)!.darkMode),
                     value: isDark,
-                    onChanged: (val) => auth.toggleTheme(val),
+                    onChanged: (val) => auth.setThemeMode(val),
                     secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                   );
                 },
@@ -483,6 +484,23 @@ class JoinQueueDialog extends StatefulWidget {
 class _JoinQueueDialogState extends State<JoinQueueDialog> {
   final _reasonCtrl = TextEditingController();
   bool _isLoading = false;
+  String? _selectedPhcId;
+  List<Map<String, dynamic>> _phcs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPhcs();
+  }
+
+  Future<void> _loadPhcs() async {
+    final phcs = await FirestoreService().getAllPhcs();
+    if (mounted) {
+      setState(() {
+        _phcs = phcs;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -490,9 +508,10 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
       title: const Text('Join Doctor Queue'),
       content: _isLoading 
         ? const SizedBox(height: 100, child: Center(child: CircularProgressIndicator(color: Colors.blue)))
-        : Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+        : SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('What is your problem or symptom?', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
@@ -506,16 +525,46 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
                 border: OutlineInputBorder(),
               ),
             ),
-          ],
+            const SizedBox(height: 16),
+            const Text('Which hospital are you at?', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            _phcs.isEmpty
+                ? const Center(child: CircularProgressIndicator())
+                : DropdownButtonFormField<String>(
+                    value: _selectedPhcId,
+                    hint: const Text('Select Hospital'),
+                    isExpanded: true,
+                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                    items: _phcs.map((phc) {
+                      return DropdownMenuItem<String>(
+                        value: phc['id'],
+                        child: Text(phc['name']),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        _selectedPhcId = val;
+                      });
+                    },
+                  ),
+            ],
+          ),
         ),
       actions: [
         if (!_isLoading) TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         if (!_isLoading) ElevatedButton(
           onPressed: () async {
-            if (_reasonCtrl.text.trim().isEmpty) return;
+            if (_reasonCtrl.text.trim().isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your symptoms.')));
+              return;
+            }
+            if (_selectedPhcId == null) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a hospital.')));
+              return;
+            }
             setState(() => _isLoading = true);
             try {
-              final result = await widget.provider.joinDoctorQueue(widget.patientName, _reasonCtrl.text.trim());
+              final result = await widget.provider.joinDoctorQueue(widget.patientName, _reasonCtrl.text.trim(), _selectedPhcId!);
               if (mounted) {
                 Navigator.pop(context); // Close the entry dialog
                 _showSuccessDialog(context, result);

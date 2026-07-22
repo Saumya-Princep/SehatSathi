@@ -77,6 +77,7 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        /* Removed Vitals Tracking (Last 5 Visits) per user request
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -105,6 +106,7 @@ class _InteractivePatientModalState extends State<InteractivePatientModal> {
         else
           VitalsSummaryWidget(vitalsList: _historicalVitals),
         const SizedBox(height: 16),
+        */
 
         const SizedBox(height: 24),
         _buildAIPanel(),

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../utils/image_utils.dart';
+
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
@@ -9,6 +11,7 @@ import '../auth/login_screen.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/language_selector.dart';
 import '../profile/edit_profile_screen.dart';
+import '../profile/profile_screen.dart';
 
 class LabDashboard extends StatefulWidget {
   const LabDashboard({Key? key}) : super(key: key);
@@ -32,13 +35,8 @@ class _LabDashboardState extends State<LabDashboard> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Laboratory Dashboard'),
-        actions: const [
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8.0),
-            child: LanguageSelector(),
-          ),
-        ],
+        title: const FittedBox(fit: BoxFit.scaleDown, child: Text('Laboratory Dashboard')),
+
       ),
       drawer: Drawer(
         child: Column(
@@ -46,33 +44,31 @@ class _LabDashboardState extends State<LabDashboard> {
             Consumer<AuthProvider>(
               builder: (context, authProvider, _) {
                 final user = authProvider.userModel;
-                return UserAccountsDrawerHeader(
+                return GestureDetector(
+                      onTap: () {
+                        final u = authProvider.userModel;
+                        if (u != null) {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen(user: u)),
+                          );
+                        }
+                      },
+                      child: UserAccountsDrawerHeader(
                   accountName: Text(user?.name ?? 'Lab Technician'),
                   accountEmail: Text(user?.contact ?? 'Lab Portal'),
                   currentAccountPicture: InkWell(
                     onTap: () => authProvider.uploadProfilePicture(),
                     child: CircleAvatar(
                       backgroundColor: Colors.white,
-                      backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                      backgroundImage: user?.profilePicUrl != null ? getProfileImageProvider(user!.profilePicUrl!) : null,
                       child: user?.profilePicUrl == null ? const Icon(Icons.science, size: 40, color: Colors.blue) : null,
                     ),
                   ),
-                );
+                ),
+                    );
               }
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit),
-              title: const Text('Edit Profile'),
-              onTap: () {
-                final user = context.read<AuthProvider>().userModel;
-                if (user != null) {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
-                  );
-                }
-              },
             ),
             Consumer<AuthProvider>(
               builder: (context, auth, _) {
@@ -80,7 +76,7 @@ class _LabDashboardState extends State<LabDashboard> {
                 return SwitchListTile(
                   title: const Text('Dark Mode'),
                   value: isDark,
-                  onChanged: (val) => auth.toggleTheme(val),
+                  onChanged: (val) => auth.setThemeMode(val),
                   secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                 );
               },
@@ -240,11 +236,12 @@ class _UploadResultDialogState extends State<_UploadResultDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Container(
-        width: 500,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      child: SingleChildScrollView(
+        child: Container(
+          width: 500,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text('Upload Result: ${widget.report.testName}', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
@@ -305,6 +302,7 @@ class _UploadResultDialogState extends State<_UploadResultDialog> {
             )
           ],
         ),
+      ),
       ),
     );
   }

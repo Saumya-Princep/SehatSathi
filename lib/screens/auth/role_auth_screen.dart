@@ -250,7 +250,7 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.role.name.toUpperCase()} PORTAL'),
+        title: FittedBox(fit: BoxFit.scaleDown, child: Text('${widget.role.name.toUpperCase()} PORTAL')),
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

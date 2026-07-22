@@ -3,7 +3,8 @@ import '../../models/user_model.dart';
 import 'role_auth_screen.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/language_selector.dart';
-
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 class LoginScreen extends StatelessWidget {
   const LoginScreen({Key? key}) : super(key: key);
 
@@ -26,9 +27,17 @@ class LoginScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Align(
-                  alignment: Alignment.topRight,
-                  child: LanguageSelector(),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Consumer<AuthProvider>(
+                      builder: (context, auth, _) => IconButton(
+                        icon: Icon(auth.themeMode == ThemeMode.dark ? Icons.light_mode : Icons.dark_mode),
+                        onPressed: () => auth.toggleTheme(),
+                      ),
+                    ),
+                    const LanguageSelector(),
+                  ],
                 ),
                 Icon(
                   Icons.health_and_safety,

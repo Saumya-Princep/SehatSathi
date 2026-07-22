@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,15 +43,15 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> toggleTheme(bool isDark) async {
+  Future<void> setThemeMode(bool isDark) async {
     _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('is_dark_mode', isDark);
     notifyListeners();
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool('isDarkMode', isDark);
-    } catch (e) {
-      print('Error saving theme: $e');
-    }
+  }
+
+  Future<void> toggleTheme() async {
+    await setThemeMode(_themeMode != ThemeMode.dark);
   }
 
   void _initAuthListener() {
@@ -158,25 +159,27 @@ class AuthProvider with ChangeNotifier {
     if (user == null || _userModel == null) return;
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 20);
       if (pickedFile == null) return;
 
       _setLoading(true);
-      final file = File(pickedFile.path);
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('profile_pictures')
-          .child('${user.uid}.jpg');
+      final bytes = await pickedFile.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      final downloadUrl = 'data:image/jpeg;base64,$base64Image';
 
-      await storageRef.putFile(file);
-      final downloadUrl = await storageRef.getDownloadURL();
+      final targetUid = _activeDependent != null ? _activeDependent!.uid : user.uid;
 
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(targetUid)
           .update({'profilePicUrl': downloadUrl});
 
-      _userModel = await _authService.getUserData(user.uid);
+      if (targetUid == user.uid) {
+        _userModel = await _authService.getUserData(user.uid);
+      }
+      if (_activeDependent != null && _activeDependent!.uid == targetUid) {
+        _activeDependent = await _authService.getUserData(targetUid);
+      }
       notifyListeners();
     } catch (e) {
       print('Error uploading profile picture: $e');

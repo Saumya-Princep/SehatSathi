@@ -58,8 +58,8 @@ class FirestoreService {
     }).toList();
   }
 
-  Future<Map<String, dynamic>?> assignDoctor(String patientId, String specialty) async {
-    // 1. Check patient history for a previous doctor in this specialty who is present
+  Future<Map<String, dynamic>?> assignDoctor(String patientId, String specialty, String phcId) async {
+    // 1. Check patient history for a previous doctor in this specialty who is present and in the same PHC
     final pastRecordsQuery = await _db.collection('medical_records')
         .where('patientId', isEqualTo: patientId)
         .get();
@@ -78,30 +78,32 @@ class FirestoreService {
         final docSnapshot = await _db.collection('users').doc(doctorId).get();
         if (docSnapshot.exists && docSnapshot.data() != null) {
           final docData = docSnapshot.data()!;
-          if (docData['role'] == 'doctor' && docData['isPresent'] == true && docData['specialty'] == specialty) {
+          if (docData['role'] == 'doctor' && docData['isPresent'] == true && docData['specialty'] == specialty && docData['assignedPhcId'] == phcId) {
             return {'id': docSnapshot.id, 'name': docData['name'] ?? 'Doctor', 'specialty': docData['specialty'] ?? specialty};
           }
         }
       }
     }
 
-    // 2. Load balancing: find all present doctors in the specialty
+    // 2. Load balancing: find all present doctors in the specialty in this PHC
     var availableDocsQuery = await _db.collection('users')
         .where('role', isEqualTo: 'doctor')
         .where('specialty', isEqualTo: specialty)
         .where('isPresent', isEqualTo: true)
+        .where('assignedPhcId', isEqualTo: phcId)
         .get();
 
-    // Fallback: If no specialist is present, find any present doctor
+    // Fallback: If no specialist is present, find any present doctor in this PHC
     if (availableDocsQuery.docs.isEmpty) {
       availableDocsQuery = await _db.collection('users')
           .where('role', isEqualTo: 'doctor')
           .where('isPresent', isEqualTo: true)
+          .where('assignedPhcId', isEqualTo: phcId)
           .get();
     }
     
     if (availableDocsQuery.docs.isEmpty) {
-      return null; // No doctors are currently present
+      return null; // No doctors are currently present in this PHC
     }
 
     // 3. Find the one with the lowest queue count

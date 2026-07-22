@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../utils/image_utils.dart';
+
 import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../providers/auth_provider.dart';
@@ -12,6 +14,7 @@ import 'package:uuid/uuid.dart';
 import '../../l10n/app_localizations.dart';
 import '../../widgets/language_selector.dart';
 import '../profile/edit_profile_screen.dart';
+import '../profile/profile_screen.dart';
 
 class PharmacistDashboard extends StatelessWidget {
   const PharmacistDashboard({Key? key}) : super(key: key);
@@ -26,7 +29,7 @@ class PharmacistDashboard extends StatelessWidget {
         length: 2,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('Pharmacy Portal'),
+            title: const FittedBox(fit: BoxFit.scaleDown, child: Text('Pharmacy Portal')),
             actions: [],
             bottom: const TabBar(
               indicatorColor: Colors.white,
@@ -44,33 +47,31 @@ class PharmacistDashboard extends StatelessWidget {
                 Consumer<AuthProvider>(
                   builder: (context, authProvider, _) {
                     final user = authProvider.userModel;
-                    return UserAccountsDrawerHeader(
+                    return GestureDetector(
+                      onTap: () {
+                        final u = authProvider.userModel;
+                        if (u != null) {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ProfileScreen(user: u)),
+                          );
+                        }
+                      },
+                      child: UserAccountsDrawerHeader(
                       accountName: Text(user?.name ?? 'Pharmacist'),
                       accountEmail: Text(user?.contact ?? 'Pharmacy Portal'),
                       currentAccountPicture: InkWell(
                         onTap: () => authProvider.uploadProfilePicture(),
                         child: CircleAvatar(
                           backgroundColor: Colors.white,
-                          backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                          backgroundImage: user?.profilePicUrl != null ? getProfileImageProvider(user!.profilePicUrl!) : null,
                           child: user?.profilePicUrl == null ? const Icon(Icons.local_pharmacy, size: 40, color: Colors.blue) : null,
                         ),
                       ),
+                    ),
                     );
                   }
-                ),
-                ListTile(
-                  leading: const Icon(Icons.edit),
-                  title: const Text('Edit Profile'),
-                  onTap: () {
-                    final user = context.read<AuthProvider>().userModel;
-                    if (user != null) {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
-                      );
-                    }
-                  },
                 ),
                 Consumer<AuthProvider>(
                   builder: (context, auth, _) {
@@ -78,7 +79,7 @@ class PharmacistDashboard extends StatelessWidget {
                     return SwitchListTile(
                       title: const Text('Dark Mode'),
                       value: isDark,
-                      onChanged: (val) => auth.toggleTheme(val),
+                      onChanged: (val) => auth.setThemeMode(val),
                       secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
                     );
                   },
