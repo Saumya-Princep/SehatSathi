@@ -18,6 +18,7 @@ import '../../models/health_advisory.dart';
 import '../../models/lab_report.dart';
 import 'package:uuid/uuid.dart';
 import '../../widgets/language_selector.dart';
+import '../profile/edit_profile_screen.dart';
 
 class DoctorDashboard extends StatelessWidget {
   const DoctorDashboard({Key? key}) : super(key: key);
@@ -105,6 +106,20 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                         ),
                       );
                     }
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.edit),
+                    title: const Text('Edit Profile'),
+                    onTap: () {
+                      final user = context.read<AuthProvider>().userModel;
+                      if (user != null) {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
+                        );
+                      }
+                    },
                   ),
                   Consumer<AuthProvider>(
                     builder: (context, auth, _) {
@@ -275,6 +290,20 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                           ),
                         );
                       }
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.edit),
+                      title: const Text('Edit Profile'),
+                      onTap: () {
+                        final user = context.read<AuthProvider>().userModel;
+                        if (user != null) {
+                          Navigator.pop(context);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
+                          );
+                        }
+                      },
                     ),
                     Consumer<AuthProvider>(
                       builder: (context, auth, _) {

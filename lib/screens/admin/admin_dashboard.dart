@@ -11,6 +11,7 @@ import '../../models/health_advisory.dart';
 import '../../models/inventory_item.dart';
 import '../../widgets/language_selector.dart';
 import '../../l10n/app_localizations.dart';
+import '../profile/edit_profile_screen.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -58,6 +59,20 @@ class AdminDashboard extends StatelessWidget {
                       ),
                     );
                   }
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit),
+                  title: const Text('Edit Profile'),
+                  onTap: () {
+                    final user = context.read<AuthProvider>().userModel;
+                    if (user != null) {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
+                      );
+                    }
+                  },
                 ),
                 Consumer<AuthProvider>(
                   builder: (context, auth, _) {

@@ -184,4 +184,30 @@ class AuthProvider with ChangeNotifier {
       _setLoading(false);
     }
   }
+
+  Future<bool> updateProfile(model.UserModel updatedUser) async {
+    _setLoading(true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(updatedUser.uid)
+          .update(updatedUser.toMap());
+          
+      // Update local state if it's the main user or active dependent
+      if (_userModel?.uid == updatedUser.uid) {
+        _userModel = updatedUser;
+      }
+      if (_activeDependent?.uid == updatedUser.uid) {
+        _activeDependent = updatedUser;
+      }
+      
+      notifyListeners();
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      print('Error updating profile: $e');
+      _setLoading(false);
+      return false;
+    }
+  }
 }

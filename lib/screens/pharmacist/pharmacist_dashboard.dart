@@ -9,8 +9,9 @@ import '../../models/health_advisory.dart';
 import '../../widgets/health_advisory_carousel.dart';
 import '../auth/login_screen.dart';
 import 'package:uuid/uuid.dart';
-import '../../widgets/language_selector.dart';
 import '../../l10n/app_localizations.dart';
+import '../../widgets/language_selector.dart';
+import '../profile/edit_profile_screen.dart';
 
 class PharmacistDashboard extends StatelessWidget {
   const PharmacistDashboard({Key? key}) : super(key: key);
@@ -56,6 +57,20 @@ class PharmacistDashboard extends StatelessWidget {
                       ),
                     );
                   }
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit),
+                  title: const Text('Edit Profile'),
+                  onTap: () {
+                    final user = context.read<AuthProvider>().userModel;
+                    if (user != null) {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
+                      );
+                    }
+                  },
                 ),
                 Consumer<AuthProvider>(
                   builder: (context, auth, _) {

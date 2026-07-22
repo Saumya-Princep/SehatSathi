@@ -22,6 +22,7 @@ import '../../widgets/language_selector.dart';
 import '../../models/vitals.dart';
 import 'package:geolocator/geolocator.dart';
 import 'widgets/add_dependent_dialog.dart';
+import '../profile/edit_profile_screen.dart';
 class PatientDashboard extends StatelessWidget {
   const PatientDashboard({Key? key}) : super(key: key);
 
@@ -61,6 +62,20 @@ class PatientDashboard extends StatelessWidget {
                     ),
                   );
                 }
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Edit Profile'),
+                onTap: () {
+                  final user = context.read<AuthProvider>().activePatient;
+                  if (user != null) {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => EditProfileScreen(user: user)),
+                    );
+                  }
+                },
               ),
               const Divider(),
               Consumer<AuthProvider>(
