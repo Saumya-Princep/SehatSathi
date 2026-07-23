@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import '../../utils/image_utils.dart';
 
 import 'package:provider/provider.dart';
@@ -46,7 +48,9 @@ class PatientDashboard extends StatelessWidget {
           actions: [],
         ),
         drawer: Drawer(
-          child: Column(
+                    child: SafeArea(
+            top: false,
+            child: Column(
             children: [
               Consumer<AuthProvider>(
                 builder: (context, authProvider, _) {
@@ -191,6 +195,7 @@ class PatientDashboard extends StatelessWidget {
               ),
               const SizedBox(height: 16),
             ],
+          )
           ),
         ),
         floatingActionButton: Consumer<PatientProvider>(
@@ -499,7 +504,74 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
   }
 
   Future<void> _loadPhcs() async {
-    final phcs = await FirestoreService().getAllPhcs();
+    List<Map<String, dynamic>> phcs = [];
+    bool usedFallback = false;
+    
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+        
+        // Try Overpass API (OpenStreetMap) to get real hospitals for free
+        try {
+          final query = '[out:json];node(around:5000,${position.latitude},${position.longitude})[amenity=hospital];out;';
+          final url = 'https://overpass-api.de/api/interpreter?data=${Uri.encodeQueryComponent(query)}';
+          final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+          
+          if (response.statusCode == 200) {
+            final data = json.decode(response.body);
+            if (data['elements'] != null) {
+              final elements = data['elements'] as List;
+              for (var element in elements) {
+                if (element['tags'] != null && element['tags']['name'] != null) {
+                  phcs.add({
+                    'id': element['id'].toString(),
+                    'name': element['tags']['name'],
+                    'latitude': element['lat'],
+                    'longitude': element['lon']
+                  });
+                }
+              }
+            }
+          }
+          
+          if (phcs.isEmpty) {
+            usedFallback = true;
+          }
+        } catch (e) {
+          usedFallback = true;
+        }
+
+        if (usedFallback || phcs.isEmpty) {
+          phcs = await FirestoreService().getAllPhcs();
+        }
+        
+        for (var phc in phcs) {
+          double lat = (phc['latitude'] ?? 37.422) as double;
+          double lng = (phc['longitude'] ?? -122.084) as double;
+          double distanceInMeters = Geolocator.distanceBetween(position.latitude, position.longitude, lat, lng);
+          phc['distance'] = distanceInMeters;
+          phc['displayName'] = '${phc['name']} (${(distanceInMeters / 1000).toStringAsFixed(1)} km)';
+        }
+        
+        phcs.sort((a, b) => (a['distance'] as double).compareTo(b['distance'] as double));
+      } else {
+        phcs = await FirestoreService().getAllPhcs();
+        for (var phc in phcs) {
+          phc['displayName'] = phc['name'];
+        }
+      }
+    } catch (e) {
+      phcs = await FirestoreService().getAllPhcs();
+      for (var phc in phcs) {
+        phc['displayName'] = phc['name'];
+      }
+    }
+
     if (mounted) {
       setState(() {
         _phcs = phcs;
@@ -535,18 +607,17 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
             const SizedBox(height: 8),
             _phcs.isEmpty
                 ? const Center(child: CircularProgressIndicator())
-                : DropdownButtonFormField<String>(
-                    value: _selectedPhcId,
-                    hint: const Text('Select Hospital'),
-                    isExpanded: true,
-                    decoration: const InputDecoration(border: OutlineInputBorder()),
-                    items: _phcs.map((phc) {
-                      return DropdownMenuItem<String>(
+                : DropdownMenu<String>(
+                    width: MediaQuery.of(context).size.width * 0.7,
+                    hintText: 'Search Hospital',
+                    enableFilter: true,
+                    dropdownMenuEntries: _phcs.map((phc) {
+                      return DropdownMenuEntry<String>(
                         value: phc['id'],
-                        child: Text(phc['name']),
+                        label: phc['displayName'] ?? phc['name'],
                       );
                     }).toList(),
-                    onChanged: (val) {
+                    onSelected: (val) {
                       setState(() {
                         _selectedPhcId = val;
                       });

@@ -9,44 +9,48 @@ class LanguageSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<LanguageProvider>(
       builder: (context, languageProvider, child) {
-        return DropdownButton<String>(
-          value: languageProvider.currentLocale.languageCode,
-          underline: const SizedBox(),
-          onChanged: (String? newValue) {
-            if (newValue != null) {
-              languageProvider.setLanguage(newValue);
-            }
-          },
-          items: const [
-            DropdownMenuItem(
-              value: 'en',
-              child: Text('English'),
-            ),
-            DropdownMenuItem(
-              value: 'hi',
-              child: Text('हिंदी (Hindi)'),
-            ),
-            DropdownMenuItem(
-              value: 'bn',
-              child: Text('বাংলা (Bengali)'),
-            ),
-            DropdownMenuItem(
-              value: 'te',
-              child: Text('తెలుగు (Telugu)'),
-            ),
-            DropdownMenuItem(
-              value: 'mr',
-              child: Text('मराठी (Marathi)'),
-            ),
-            DropdownMenuItem(
-              value: 'ta',
-              child: Text('தமிழ் (Tamil)'),
-            ),
-            DropdownMenuItem(
-              value: 'gu',
-              child: Text('ગુજરાતી (Gujarati)'),
-            ),
-          ],
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 120),
+          child: DropdownButton<String>(
+            isExpanded: true,
+            value: languageProvider.currentLocale.languageCode,
+            underline: const SizedBox(),
+            onChanged: (String? newValue) {
+              if (newValue != null) {
+                languageProvider.setLanguage(newValue);
+              }
+            },
+            items: const [
+              DropdownMenuItem(
+                value: 'en',
+                child: Text('English', overflow: TextOverflow.ellipsis),
+              ),
+              DropdownMenuItem(
+                value: 'hi',
+                child: Text('हिंदी (Hindi)', overflow: TextOverflow.ellipsis),
+              ),
+              DropdownMenuItem(
+                value: 'bn',
+                child: Text('বাংলা (Bengali)', overflow: TextOverflow.ellipsis),
+              ),
+              DropdownMenuItem(
+                value: 'te',
+                child: Text('తెలుగు (Telugu)', overflow: TextOverflow.ellipsis),
+              ),
+              DropdownMenuItem(
+                value: 'mr',
+                child: Text('मराठी (Marathi)', overflow: TextOverflow.ellipsis),
+              ),
+              DropdownMenuItem(
+                value: 'ta',
+                child: Text('தமிழ் (Tamil)', overflow: TextOverflow.ellipsis),
+              ),
+              DropdownMenuItem(
+                value: 'gu',
+                child: Text('ગુજરાતી (Gujarati)', overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
         );
       },
     );

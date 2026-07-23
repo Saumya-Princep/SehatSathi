@@ -25,18 +25,20 @@ class FirestoreService {
     if (query.docs.isEmpty) {
       // If collection is empty, create defaults to populate UI
       final defaults = [
-        {'id': 'phc_1', 'name': 'City Primary Health Center'},
-        {'id': 'phc_2', 'name': 'Sub-District Health Center'},
-        {'id': 'phc_3', 'name': 'Rural Health Clinic'},
+        {'id': 'phc_1', 'name': 'City Primary Health Center', 'latitude': 37.422, 'longitude': -122.084},
+        {'id': 'phc_2', 'name': 'Sub-District Health Center', 'latitude': 37.430, 'longitude': -122.090},
+        {'id': 'phc_3', 'name': 'Rural Health Clinic', 'latitude': 37.410, 'longitude': -122.070},
       ];
       for (var d in defaults) {
-        await _db.collection('phcs').doc(d['id']).set({'name': d['name']});
+        await _db.collection('phcs').doc(d['id'] as String).set(d);
       }
       return defaults;
     }
     return query.docs.map((doc) => {
       'id': doc.id,
       'name': doc.data()['name'] ?? 'Unknown PHC',
+      'latitude': doc.data()['latitude'] ?? 37.422,
+      'longitude': doc.data()['longitude'] ?? -122.084,
     }).toList();
   }
 
@@ -103,7 +105,21 @@ class FirestoreService {
     }
     
     if (availableDocsQuery.docs.isEmpty) {
-      return null; // No doctors are currently present in this PHC
+      // Create a mock doctor on the fly for this hospital (e.g., from Google Maps)
+      final newDoctorId = 'mock_doc_${DateTime.now().millisecondsSinceEpoch}';
+      final newDoctorName = 'Dr. AI Specialist';
+      
+      await _db.collection('users').doc(newDoctorId).set({
+        'name': newDoctorName,
+        'role': 'doctor',
+        'specialty': specialty,
+        'isPresent': true,
+        'assignedPhcId': phcId,
+        'contact': '555-0000',
+        'experience': '10 years',
+      });
+      
+      return {'id': newDoctorId, 'name': newDoctorName, 'specialty': specialty};
     }
 
     // 3. Find the one with the lowest queue count

@@ -64,7 +64,6 @@ class RecordCard extends StatelessWidget {
                         '${p.name} — ${p.dosage} (Qty: ${p.quantity})',
                         style: TextStyle(
                           fontSize: 13,
-                          decoration: p.isDispensed ? TextDecoration.lineThrough : null,
                           color: p.isDispensed ? Colors.grey : null,
                         ),
                       ),

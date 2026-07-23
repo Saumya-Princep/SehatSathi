@@ -42,7 +42,9 @@ class PharmacistDashboard extends StatelessWidget {
             ),
           ),
           drawer: Drawer(
-            child: Column(
+                        child: SafeArea(
+              top: false,
+              child: Column(
               children: [
                 Consumer<AuthProvider>(
                   builder: (context, authProvider, _) {
@@ -101,6 +103,7 @@ class PharmacistDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
+            )
             ),
           ),
           body: Consumer<PharmacistProvider>(

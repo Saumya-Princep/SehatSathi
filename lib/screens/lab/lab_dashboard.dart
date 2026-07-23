@@ -39,7 +39,9 @@ class _LabDashboardState extends State<LabDashboard> {
 
       ),
       drawer: Drawer(
-        child: Column(
+                child: SafeArea(
+          top: false,
+          child: Column(
           children: [
             Consumer<AuthProvider>(
               builder: (context, authProvider, _) {
@@ -98,6 +100,7 @@ class _LabDashboardState extends State<LabDashboard> {
             ),
             const SizedBox(height: 16),
           ],
+        )
         ),
       ),
       body: SafeArea(

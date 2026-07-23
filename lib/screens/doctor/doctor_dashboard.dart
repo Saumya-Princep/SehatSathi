@@ -86,7 +86,9 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
 
             ),
             drawer: Drawer(
-              child: Column(
+                            child: SafeArea(
+                top: false,
+                child: Column(
                 children: [
                   Consumer<AuthProvider>(
                     builder: (context, authProvider, _) {
@@ -145,6 +147,7 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                   ),
                   const SizedBox(height: 16),
                 ],
+              )
               ),
             ),
             body: const Center(
@@ -266,7 +269,9 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
           ),
           ),
               drawer: Drawer(
-                child: Column(
+                                child: SafeArea(
+                  top: false,
+                  child: Column(
                   children: [
                     Consumer<AuthProvider>(
                       builder: (context, authProvider, _) {
@@ -331,6 +336,7 @@ class _DoctorDashboardViewState extends State<_DoctorDashboardView> {
                     ),
                     const SizedBox(height: 16),
                   ],
+                )
                 ),
               ),
             );

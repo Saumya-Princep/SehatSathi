@@ -44,7 +44,9 @@ class AdminDashboard extends StatelessWidget {
             ),
           ),
           drawer: Drawer(
-            child: Column(
+                        child: SafeArea(
+              top: false,
+              child: Column(
               children: [
                 Consumer<AuthProvider>(
                   builder: (context, authProvider, _) {
@@ -103,6 +105,7 @@ class AdminDashboard extends StatelessWidget {
                 ),
                 const SizedBox(height: 16),
               ],
+            )
             ),
           ),
           body: SafeArea(
