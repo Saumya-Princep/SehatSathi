@@ -11,15 +11,23 @@ import 'package:uuid/uuid.dart';
 class AdminProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
   final String phcId;
+  String hospitalName = 'Hospital Administration';
 
-  AdminProvider({required this.phcId});
+  AdminProvider({required this.phcId}) {
+    _fetchHospitalName();
+  }
+
+  Future<void> _fetchHospitalName() async {
+    hospitalName = await _firestoreService.getPhcName(phcId);
+    notifyListeners();
+  }
 
   Stream<List<Attendance>> get todayAttendanceStream {
     return _firestoreService.getTodayAttendance(phcId);
   }
 
   Stream<List<InventoryItem>> get inventoryStream {
-    return _firestoreService.getInventory();
+    return _firestoreService.getInventory(phcId);
   }
   
   Stream<List<Ambulance>> get ambulancesStream {
@@ -27,8 +35,8 @@ class AdminProvider with ChangeNotifier {
   }
   
   Stream<int> get activeDoctorsCountStream {
-    return todayAttendanceStream.map((attendances) {
-      return attendances.where((a) => a.role == 'doctor' && a.checkOut == null).length;
+    return doctorsStream.map((doctors) {
+      return doctors.where((d) => d.isPresent).length;
     });
   }
 
@@ -38,7 +46,7 @@ class AdminProvider with ChangeNotifier {
 
   // Early Warning System Logic
   Stream<bool> get diseaseAlertStream {
-    return _firestoreService.getRecentMedicalRecords().map((snapshot) {
+    return _firestoreService.getRecentMedicalRecords(phcId).map((snapshot) {
       int malariaCases = 0;
       int dengueCases = 0;
       
@@ -59,7 +67,7 @@ class AdminProvider with ChangeNotifier {
 
   // Epidemiology stats aggregator
   Stream<Map<String, int>> get diagnosisStatsStream {
-    return _firestoreService.getRecentMedicalRecords().map((snapshot) {
+    return _firestoreService.getRecentMedicalRecords(phcId).map((snapshot) {
       final Map<String, int> stats = {
         'Malaria': 0,
         'Dengue': 0,
@@ -111,7 +119,7 @@ class AdminProvider with ChangeNotifier {
 
   // Health Advisories
   Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
-    return _firestoreService.getHealthAdvisories();
+    return _firestoreService.getHealthAdvisories(phcId);
   }
 
   Future<void> broadcastAdvisory(String title, String description, String severity) async {
@@ -120,6 +128,7 @@ class AdminProvider with ChangeNotifier {
       title: title,
       description: description,
       severity: severity,
+      phcId: phcId,
       date: DateTime.now(),
     );
     await _firestoreService.postHealthAdvisory(advisory);
@@ -131,7 +140,7 @@ class AdminProvider with ChangeNotifier {
 
   // Doctors
   Stream<List<UserModel>> get doctorsStream {
-    return _firestoreService.getDoctorsStream();
+    return _firestoreService.getDoctorsStream(phcId);
   }
 
   Future<void> toggleDoctorPresence(String uid, bool isPresent) async {

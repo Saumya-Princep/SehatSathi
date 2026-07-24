@@ -4,6 +4,7 @@ class InventoryItem {
   final String id;
   final String name;
   final String batchNumber;
+  final String phcId;
   final int currentStock;
   final int thresholdLimit;
   final DateTime? lastUpdated;
@@ -12,6 +13,7 @@ class InventoryItem {
     required this.id,
     required this.name,
     required this.batchNumber,
+    required this.phcId,
     required this.currentStock,
     required this.thresholdLimit,
     this.lastUpdated,
@@ -24,6 +26,7 @@ class InventoryItem {
       id: documentId,
       name: data['name'] ?? '',
       batchNumber: data['batchNumber'] ?? '',
+      phcId: data['phcId'] ?? 'phc_1',
       currentStock: data['currentStock']?.toInt() ?? 0,
       thresholdLimit: data['thresholdLimit']?.toInt() ?? 0,
       lastUpdated: data['lastUpdated'] != null ? (data['lastUpdated'] as Timestamp).toDate() : null,
@@ -34,6 +37,7 @@ class InventoryItem {
     return {
       'name': name,
       'batchNumber': batchNumber,
+      'phcId': phcId,
       'currentStock': currentStock,
       'thresholdLimit': thresholdLimit,
       'lastUpdated': lastUpdated != null ? Timestamp.fromDate(lastUpdated!) : FieldValue.serverTimestamp(),

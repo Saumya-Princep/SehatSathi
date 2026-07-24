@@ -29,6 +29,7 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
   final _regEmailCtrl = TextEditingController();
   final _regPassCtrl = TextEditingController();
   final _regExtraCtrl = TextEditingController(); // Doctor ID, Hospital Reg, etc.
+  final _regHospitalNameCtrl = TextEditingController(); // Admin New Hospital
 
   // New Patient Fields
   final _regAgeCtrl = TextEditingController();
@@ -63,6 +64,7 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
     _regEmailCtrl.dispose();
     _regPassCtrl.dispose();
     _regExtraCtrl.dispose();
+    _regHospitalNameCtrl.dispose();
     _regAgeCtrl.dispose();
     _regAddressCtrl.dispose();
     _regEmergencyContactCtrl.dispose();
@@ -161,6 +163,10 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Registration ID is required.')));
       return;
     }
+    if (widget.role == UserRole.admin && _regHospitalNameCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Hospital Name is required.')));
+      return;
+    }
 
     try {
       await provider.register(
@@ -168,7 +174,8 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
         password: _regPassCtrl.text.trim(),
         name: _regNameCtrl.text.trim(),
         role: widget.role,
-        phcId: _selectedPhcId,
+        phcId: widget.role == UserRole.admin ? null : _selectedPhcId,
+        hospitalName: widget.role == UserRole.admin ? _regHospitalNameCtrl.text.trim() : null,
         doctorRegId: widget.role == UserRole.doctor ? _regExtraCtrl.text.trim() : null,
         hospitalRegNo: widget.role == UserRole.admin ? _regExtraCtrl.text.trim() : null,
         pharmacistRegNo: widget.role == UserRole.pharmacist ? _regExtraCtrl.text.trim() : null,
@@ -367,35 +374,38 @@ class _RoleAuthScreenState extends State<RoleAuthScreen> with SingleTickerProvid
                   const SizedBox(height: 16),
                 ],
 
-                _isLoadingPhcs
-                    ? const Padding(
-                        padding: EdgeInsets.all(8.0),
-                        child: CircularProgressIndicator(),
-                      )
-                    : DropdownButtonFormField<String>(
-                        value: _selectedPhcId,
-                        decoration: InputDecoration(
-                          labelText: 'Assigned PHC / Clinic',
-                          prefixIcon: const Icon(Icons.local_hospital),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
+                if (widget.role == UserRole.admin)
+                  CustomTextField(label: 'Hospital Name', controller: _regHospitalNameCtrl, prefixIcon: Icons.local_hospital)
+                else if (widget.role != UserRole.patient)
+                  _isLoadingPhcs
+                      ? const Padding(
+                          padding: EdgeInsets.all(8.0),
+                          child: CircularProgressIndicator(),
+                        )
+                      : DropdownButtonFormField<String>(
+                          value: _selectedPhcId,
+                          decoration: InputDecoration(
+                            labelText: 'Select Hospital',
+                            prefixIcon: const Icon(Icons.local_hospital),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Theme.of(context).brightness == Brightness.dark 
+                                ? Theme.of(context).colorScheme.surface 
+                                : Colors.grey[50],
                           ),
-                          filled: true,
-                          fillColor: Theme.of(context).brightness == Brightness.dark 
-                              ? Theme.of(context).colorScheme.surface 
-                              : Colors.grey[50],
+                          isExpanded: true,
+                          items: _phcList.map((phc) {
+                            return DropdownMenuItem<String>(
+                              value: phc['id'],
+                              child: Text(phc['name']),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            setState(() => _selectedPhcId = val);
+                          },
                         ),
-                        isExpanded: true,
-                        items: _phcList.map((phc) {
-                          return DropdownMenuItem<String>(
-                            value: phc['id'],
-                            child: Text(phc['name']),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() => _selectedPhcId = val);
-                        },
-                      ),
                 if (widget.role != UserRole.patient) ...[
                   const SizedBox(height: 16),
                   CustomTextField(

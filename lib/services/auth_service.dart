@@ -102,6 +102,7 @@ class AuthService {
     required String name,
     required model.UserRole role,
     String? phcId,
+    String? hospitalName,
     String? doctorRegId,
     String? hospitalRegNo,
     String? pharmacistRegNo,
@@ -118,11 +119,24 @@ class AuthService {
         password: password,
       );
       if (result.user != null) {
+        String? finalPhcId = phcId;
+
+        // If an admin is registering a new hospital, create the record first
+        if (role == model.UserRole.admin && hospitalName != null && hospitalName.isNotEmpty) {
+          finalPhcId = 'phc_${DateTime.now().millisecondsSinceEpoch}';
+          await _firestore.collection('phcs').doc(finalPhcId).set({
+            'id': finalPhcId,
+            'name': hospitalName,
+            'latitude': 0.0,
+            'longitude': 0.0,
+          });
+        }
+
         final newUser = model.UserModel(
           uid: result.user!.uid,
           name: name,
           role: role,
-          assignedPhcId: phcId,
+          assignedPhcId: finalPhcId,
           doctorRegistrationId: doctorRegId,
           hospitalRegistrationNumber: hospitalRegNo,
           pharmacistRegistrationNumber: pharmacistRegNo,

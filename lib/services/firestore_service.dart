@@ -42,6 +42,16 @@ class FirestoreService {
     }).toList();
   }
 
+  Future<String> getPhcName(String phcId) async {
+    try {
+      final doc = await _db.collection('phcs').doc(phcId).get();
+      if (doc.exists && doc.data() != null) {
+        return doc.data()!['name'] ?? 'Hospital Administration';
+      }
+    } catch (_) {}
+    return 'Hospital Administration';
+  }
+
   // Patients list for doctor dropdown
   Future<List<Map<String, dynamic>>> getAllPatients() async {
     final query = await _db.collection('users').where('role', isEqualTo: 'patient').get();
@@ -207,9 +217,10 @@ class FirestoreService {
   }
 
   // Structured Prescriptions & Pharmacy Dispensation
-  Stream<List<MedicalRecord>> getPendingPrescriptions() {
+  Stream<List<MedicalRecord>> getPendingPrescriptions(String phcId) {
     return _db
         .collection('medical_records')
+        .where('phcId', isEqualTo: phcId)
         .snapshots()
         .map((snapshot) {
           final list = snapshot.docs
@@ -276,9 +287,12 @@ class FirestoreService {
   }
 
   // Inventory Management
-  Stream<List<InventoryItem>> getInventory() {
-    return _db.collection('inventory').snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => InventoryItem.fromMap(doc.data(), doc.id)).toList());
+  Stream<List<InventoryItem>> getInventory(String phcId) {
+    return _db.collection('inventory')
+        .where('phcId', isEqualTo: phcId)
+        .snapshots()
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => InventoryItem.fromMap(doc.data(), doc.id)).toList());
   }
 
   Future<void> addInventoryItem(InventoryItem item) async {
@@ -303,9 +317,10 @@ class FirestoreService {
     );
   }
 
-  Stream<List<UserModel>> getDoctorsStream() {
+  Stream<List<UserModel>> getDoctorsStream(String phcId) {
     return _db.collection('users')
         .where('role', isEqualTo: 'doctor')
+        .where('assignedPhcId', isEqualTo: phcId)
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => UserModel.fromMap(doc.data(), doc.id)).toList());
   }
@@ -417,9 +432,10 @@ class FirestoreService {
   }
 
   // Analytics & Epidemiological Outbreak Warning System
-  Stream<QuerySnapshot> getRecentMedicalRecords() {
+  Stream<QuerySnapshot> getRecentMedicalRecords(String phcId) {
     final last48Hours = DateTime.now().subtract(const Duration(hours: 48));
     return _db.collection('medical_records')
+        .where('phcId', isEqualTo: phcId)
         .where('date', isGreaterThanOrEqualTo: last48Hours)
         .snapshots();
   }
@@ -428,17 +444,20 @@ class FirestoreService {
     final today = DateTime.now();
     final startOfDay = DateTime(today.year, today.day == today.day ? today.month : today.month, today.day);
     return _db.collection('medical_records')
+        .where('phcId', isEqualTo: phcId)
         .where('date', isGreaterThanOrEqualTo: startOfDay)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
   }
 
   // District Health Advisories
-  Stream<List<HealthAdvisory>> getHealthAdvisories() {
+  Stream<List<HealthAdvisory>> getHealthAdvisories(String phcId) {
     return _db.collection('advisories')
+        .where('phcId', isEqualTo: phcId)
         .orderBy('date', descending: true)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => HealthAdvisory.fromMap(doc.data(), doc.id)).toList());
+        .map((snapshot) =>
+            snapshot.docs.map((doc) => HealthAdvisory.fromMap(doc.data(), doc.id)).toList());
   }
 
   Future<void> postHealthAdvisory(HealthAdvisory advisory) async {

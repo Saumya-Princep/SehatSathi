@@ -30,14 +30,18 @@ class AdminDashboard extends StatelessWidget {
         length: 3,
         child: Scaffold(
           appBar: AppBar(
-            title: const FittedBox(fit: BoxFit.scaleDown, child: Text('District Health Control')),
+            title: Consumer<AdminProvider>(
+              builder: (context, provider, _) {
+                return FittedBox(fit: BoxFit.scaleDown, child: Text(provider.hospitalName));
+              },
+            ),
             actions: [],
             bottom: const TabBar(
               indicatorColor: Colors.white,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               tabs: [
-                Tab(icon: Icon(Icons.analytics), text: 'DHO Analytics'),
+                Tab(icon: Icon(Icons.analytics), text: 'Hospital Analytics'),
                 Tab(icon: Icon(Icons.people_alt), text: 'Staff & Alerts'),
                 Tab(icon: Icon(Icons.airport_shuttle), text: 'Ambulance'),
               ],
@@ -159,7 +163,7 @@ class AdminDashboard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('District Clinic Metrics', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Hospital Metrics', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -372,7 +376,7 @@ class AdminDashboard extends StatelessWidget {
         ElevatedButton.icon(
           onPressed: () => _showBroadcastDialog(context, provider),
           icon: const Icon(Icons.add_alert),
-          label: const Text('Post District Health Advisory'),
+          label: const Text('Post Hospital Advisory'),
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,

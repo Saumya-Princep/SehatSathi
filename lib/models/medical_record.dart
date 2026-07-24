@@ -57,6 +57,7 @@ class MedicalRecord {
   final String patientId;
   final String doctorId;
   final String doctorName;
+  final String phcId;
   final String diagnosis;
   final List<PrescriptionItem> prescriptions;
   final List<String> allergies;
@@ -68,6 +69,7 @@ class MedicalRecord {
     required this.patientId,
     required this.doctorId,
     required this.doctorName,
+    required this.phcId,
     required this.diagnosis,
     this.prescriptions = const [],
     this.allergies = const [],
@@ -81,6 +83,7 @@ class MedicalRecord {
       patientId: data['patientId'] ?? '',
       doctorId: data['doctorId'] ?? '',
       doctorName: data['doctorName'] ?? '',
+      phcId: data['phcId'] ?? 'phc_1',
       diagnosis: data['diagnosis'] ?? '',
       prescriptions: (data['prescriptions'] as List?)?.map((p) {
             if (p is Map) {
@@ -107,6 +110,7 @@ class MedicalRecord {
       'patientId': patientId,
       'doctorId': doctorId,
       'doctorName': doctorName,
+      'phcId': phcId,
       'diagnosis': diagnosis,
       'prescriptions': prescriptions.map((p) => p.toMap()).toList(),
       'allergies': allergies,

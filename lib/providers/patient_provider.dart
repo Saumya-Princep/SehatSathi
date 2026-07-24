@@ -40,7 +40,7 @@ class PatientProvider with ChangeNotifier {
   }
 
   Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
-    return _firestoreService.getHealthAdvisories();
+    return _firestoreService.getHealthAdvisories(phcId);
   }
 
   Stream<List<Appointment>> get activeAppointmentsStream {

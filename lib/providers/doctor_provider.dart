@@ -31,7 +31,7 @@ class DoctorProvider with ChangeNotifier {
   }
 
   Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
-    return _firestoreService.getHealthAdvisories();
+    return _firestoreService.getHealthAdvisories(phcId);
   }
 
   Future<List<Map<String, dynamic>>> getPatientsList() async {
@@ -39,7 +39,7 @@ class DoctorProvider with ChangeNotifier {
   }
 
   Stream<List<InventoryItem>> get inventoryStream {
-    return _firestoreService.getInventory();
+    return _firestoreService.getInventory(phcId);
   }
 
   Future<void> addRecord(String patientId, String diagnosis, String notes, List<PrescriptionItem> prescriptions) async {
@@ -49,6 +49,7 @@ class DoctorProvider with ChangeNotifier {
       patientId: patientId,
       doctorId: doctorId,
       doctorName: doctorName,
+      phcId: phcId,
       diagnosis: diagnosis,
       notes: notes,
       prescriptions: prescriptions,

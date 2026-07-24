@@ -7,13 +7,16 @@ import '../models/health_advisory.dart';
 
 class PharmacistProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
+  final String phcId;
+
+  PharmacistProvider({required this.phcId});
 
   Stream<List<InventoryItem>> get inventoryStream {
-    return _firestoreService.getInventory();
+    return _firestoreService.getInventory(phcId);
   }
 
   Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
-    return _firestoreService.getHealthAdvisories();
+    return _firestoreService.getHealthAdvisories(phcId);
   }
 
   Future<void> addInventoryItem(InventoryItem item) async {
@@ -25,7 +28,7 @@ class PharmacistProvider with ChangeNotifier {
   }
 
   Stream<List<MedicalRecord>> get pendingPrescriptionsStream {
-    return _firestoreService.getPendingPrescriptions();
+    return _firestoreService.getPendingPrescriptions(phcId);
   }
 
   Future<void> dispenseMedicines(String recordId, List<Map<String, dynamic>> items) async {

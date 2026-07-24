@@ -24,7 +24,7 @@ class PharmacistDashboard extends StatelessWidget {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final user = authProvider.userModel;
     return ChangeNotifierProvider(
-      create: (_) => PharmacistProvider(),
+      create: (_) => PharmacistProvider(phcId: user?.assignedPhcId ?? 'phc_1'),
       child: DefaultTabController(
         length: 2,
         child: Scaffold(
@@ -467,6 +467,7 @@ class _AddMedicineDialogState extends State<_AddMedicineDialog> {
                   id: const Uuid().v4(),
                   name: name,
                   batchNumber: batch,
+                  phcId: widget.provider.phcId,
                   currentStock: stock,
                   thresholdLimit: threshold,
                   lastUpdated: DateTime.now(),

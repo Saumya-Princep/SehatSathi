@@ -555,7 +555,7 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
           double lng = (phc['longitude'] ?? -122.084) as double;
           double distanceInMeters = Geolocator.distanceBetween(position.latitude, position.longitude, lat, lng);
           phc['distance'] = distanceInMeters;
-          phc['displayName'] = '${phc['name']} (${(distanceInMeters / 1000).toStringAsFixed(1)} km)';
+          phc['displayName'] = '${phc['name']}';
         }
         
         phcs.sort((a, b) => (a['distance'] as double).compareTo(b['distance'] as double));
