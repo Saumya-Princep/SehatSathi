@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../models/medical_record.dart';
 import 'package:intl/intl.dart';
+import '../../models/lab_report.dart';
+import '../../services/firestore_service.dart';
 
 class RecordCard extends StatelessWidget {
   final MedicalRecord record;
@@ -167,7 +170,107 @@ class RecordCard extends StatelessWidget {
                         labelStyle: TextStyle(color: p.isDispensed ? Colors.green : Colors.orange, fontWeight: FontWeight.bold),
                       ),
                     )),
-                  
+                  const Divider(height: 32),
+                  _buildSectionTitle(context, 'Laboratory Reports'),
+                  StreamBuilder<List<LabReport>>(
+                    stream: FirestoreService().getLabReportsForRecord(record.id),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      final reports = snapshot.data ?? [];
+                      if (reports.isEmpty) {
+                        return const Text('No lab reports attached to this encounter.', style: TextStyle(fontStyle: FontStyle.italic));
+                      }
+                      return Column(
+                        children: reports.map((r) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ExpansionTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.green.withOpacity(0.2),
+                                child: const Icon(Icons.science, color: Colors.green),
+                              ),
+                              title: Text(r.testName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(
+                                r.timestamp != null 
+                                  ? 'Completed on ${DateFormat('MMM dd, yyyy - hh:mm a').format(r.timestamp!)}' 
+                                  : 'Completed'
+                              ),
+                              trailing: const Icon(Icons.check_circle, color: Colors.green),
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (r.imageUrl != null && r.imageUrl!.isNotEmpty)
+                                        Container(
+                                          margin: const EdgeInsets.only(bottom: 16),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: Colors.grey.shade300),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: GestureDetector(
+                                              onTap: () {
+                                                Navigator.of(context).push(MaterialPageRoute(
+                                                  builder: (context) => Scaffold(
+                                                    backgroundColor: Colors.black,
+                                                    appBar: AppBar(
+                                                      backgroundColor: Colors.black,
+                                                      iconTheme: const IconThemeData(color: Colors.white),
+                                                      title: Text(r.testName, style: const TextStyle(color: Colors.white)),
+                                                    ),
+                                                    body: Center(
+                                                      child: InteractiveViewer(
+                                                        minScale: 0.5,
+                                                        maxScale: 4.0,
+                                                        child: r.imageUrl!.startsWith('data:image')
+                                                            ? Image.memory(base64Decode(r.imageUrl!.split(',').last))
+                                                            : Image.network(r.imageUrl!),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ));
+                                              },
+                                              child: r.imageUrl!.startsWith('data:image')
+                                                  ? Image.memory(
+                                                      base64Decode(r.imageUrl!.split(',').last),
+                                                      fit: BoxFit.contain,
+                                                    )
+                                                  : Image.network(
+                                                      r.imageUrl!,
+                                                      fit: BoxFit.contain,
+                                                      loadingBuilder: (context, child, loadingProgress) {
+                                                        if (loadingProgress == null) return child;
+                                                        return const Center(
+                                                          child: Padding(
+                                                            padding: EdgeInsets.all(32.0),
+                                                            child: CircularProgressIndicator(),
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                            ),
+                                          ),
+                                        ),
+                                      if (r.resultText != null && r.resultText!.isNotEmpty) ...[
+                                        const Text('Notes:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        const SizedBox(height: 4),
+                                        Text(r.resultText!),
+                                      ]
+                                    ],
+                                  ),
+                                )
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 40),
                 ],
               ),

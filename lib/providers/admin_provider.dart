@@ -5,6 +5,7 @@ import '../models/ambulance.dart';
 import '../models/medical_record.dart';
 import '../models/health_advisory.dart';
 import '../models/user_model.dart';
+import '../models/inventory_item.dart';
 import 'package:uuid/uuid.dart';
 
 class AdminProvider with ChangeNotifier {
@@ -15,6 +16,10 @@ class AdminProvider with ChangeNotifier {
 
   Stream<List<Attendance>> get todayAttendanceStream {
     return _firestoreService.getTodayAttendance(phcId);
+  }
+
+  Stream<List<InventoryItem>> get inventoryStream {
+    return _firestoreService.getInventory();
   }
   
   Stream<List<Ambulance>> get ambulancesStream {
@@ -105,6 +110,10 @@ class AdminProvider with ChangeNotifier {
   }
 
   // Health Advisories
+  Stream<List<HealthAdvisory>> get activeAdvisoriesStream {
+    return _firestoreService.getHealthAdvisories();
+  }
+
   Future<void> broadcastAdvisory(String title, String description, String severity) async {
     final advisory = HealthAdvisory(
       id: const Uuid().v4(),
@@ -114,6 +123,10 @@ class AdminProvider with ChangeNotifier {
       date: DateTime.now(),
     );
     await _firestoreService.postHealthAdvisory(advisory);
+  }
+
+  Future<void> deleteAdvisory(String id) async {
+    await _firestoreService.deleteHealthAdvisory(id);
   }
 
   // Doctors

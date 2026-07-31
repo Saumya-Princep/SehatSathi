@@ -1,4 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'sync_manager.dart';
 import '../models/medical_record.dart';
 import '../models/inventory_item.dart';
 import '../models/ambulance.dart';
@@ -6,9 +10,14 @@ import '../models/attendance.dart';
 import '../models/health_advisory.dart';
 import '../models/appointment.dart';
 import '../models/user_model.dart';
+import '../models/lab_report.dart';
+import '../models/vitals.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  // Network Simulation Flag
+  static bool isOfflineSimulated = false;
 
   // PHCs list for registration dropdown
   Future<List<Map<String, dynamic>>> getAllPhcs() async {
@@ -47,6 +56,34 @@ class FirestoreService {
       'id': doc.id,
       'name': doc.data()['name'] ?? 'Unknown Doctor',
     }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> getDoctorsBySpecialty(String specialty) async {
+    var query = await _db.collection('users')
+        .where('role', isEqualTo: 'doctor')
+        .where('specialty', isEqualTo: specialty)
+        .where('isPresent', isEqualTo: true)
+        .get();
+
+    if (query.docs.isEmpty) {
+      // Fallback: If no specialist is present, find any present doctor
+      query = await _db.collection('users')
+          .where('role', isEqualTo: 'doctor')
+          .where('isPresent', isEqualTo: true)
+          .get();
+    }
+    
+    List<Map<String, dynamic>> doctors = [];
+    for (var doc in query.docs) {
+      final qCount = await getDoctorQueueCount(doc.id);
+      doctors.add({
+        'id': doc.id,
+        'name': doc.data()['name'] ?? 'Unknown Doctor',
+        'specialty': doc.data()['specialty'] ?? specialty,
+        'queueCount': qCount,
+      });
+    }
+    return doctors;
   }
 
   Future<Map<String, dynamic>?> assignDoctor(String patientId, String specialty) async {
@@ -137,6 +174,18 @@ class FirestoreService {
         });
   }
   
+  // Vitals
+  Stream<List<Vitals>> getPatientVitals(String patientId) {
+    return _db.collection('users').doc(patientId).collection('vitals')
+        .orderBy('date', descending: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => Vitals.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Future<void> addVitals(String patientId, Vitals vitals) async {
+    await _db.collection('users').doc(patientId).collection('vitals').doc(vitals.id).set(vitals.toMap());
+  }
+
   Stream<List<MedicalRecord>> getDoctorRecords(String doctorId) {
     return _db
         .collection('medical_records')
@@ -156,6 +205,14 @@ class FirestoreService {
   }
 
   Future<void> addMedicalRecord(MedicalRecord record) async {
+    if (isOfflineSimulated) {
+      await SyncManager.instance.enqueueMedicalRecord(record);
+      return;
+    }
+    await addMedicalRecordDirect(record);
+  }
+
+  Future<void> addMedicalRecordDirect(MedicalRecord record) async {
     await _db.collection('medical_records').doc(record.id).set(record.toMap());
   }
 
@@ -213,7 +270,7 @@ class FirestoreService {
       final updatedPrescriptions = record.prescriptions.map((item) {
         final dispenseInfo = itemsToDispense.firstWhere(
           (element) => element['id'] == item.id,
-          orElse: () => {},
+          orElse: () => <String, dynamic>{},
         );
         if (dispenseInfo.isNotEmpty) {
           return item.copyWith(isDispensed: true);
@@ -280,9 +337,11 @@ class FirestoreService {
     final startOfDay = DateTime(today.year, today.month, today.day);
     return _db.collection('attendance')
         .where('phcId', isEqualTo: phcId)
-        .where('checkIn', isGreaterThanOrEqualTo: startOfDay)
         .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) => Attendance.fromMap(doc.data(), doc.id)).toList());
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Attendance.fromMap(doc.data(), doc.id))
+            .where((a) => a.checkIn != null && a.checkIn!.isAfter(startOfDay))
+            .toList());
   }
 
   // Ambulance Fleet
@@ -386,6 +445,10 @@ class FirestoreService {
     await _db.collection('advisories').doc(advisory.id).set(advisory.toMap());
   }
 
+  Future<void> deleteHealthAdvisory(String advisoryId) async {
+    await _db.collection('advisories').doc(advisoryId).delete();
+  }
+
   // Appointments / Digital Queue
   Stream<List<Appointment>> getDoctorAppointments(String doctorId) {
     return _db.collection('appointments')
@@ -436,6 +499,14 @@ class FirestoreService {
   }
 
   Future<void> updateAppointmentStatus(String id, AppointmentStatus status) async {
+    if (isOfflineSimulated) {
+      await SyncManager.instance.enqueueAppointmentStatus(id, status);
+      return;
+    }
+    await updateAppointmentStatusDirect(id, status);
+  }
+
+  Future<void> updateAppointmentStatusDirect(String id, AppointmentStatus status) async {
     String statusStr = status.toString().split('.').last;
     await _db.collection('appointments').doc(id).update({
       'status': statusStr,
@@ -465,4 +536,71 @@ class FirestoreService {
       });
     });
   }
+
+  // Lab Reports
+  Stream<List<LabReport>> getPendingLabReports(String doctorId) {
+    return _db.collection('lab_reports')
+        .where('doctorId', isEqualTo: doctorId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => LabReport.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Stream<List<LabReport>> getPendingLabReportsForPhc(String phcId) {
+    return _db.collection('lab_reports')
+        .where('phcId', isEqualTo: phcId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => LabReport.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Stream<List<LabReport>> getPatientLabReports(String patientId) {
+    return _db.collection('lab_reports')
+        .where('patientId', isEqualTo: patientId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => LabReport.fromMap(doc.data(), doc.id)).toList());
+  }
+
+  Future<void> requestLabTest(LabReport report) async {
+    await _db.collection('lab_reports').doc(report.id).set(report.toMap());
+  }
+
+  Future<String> uploadLabReportFile(File file, String reportId) async {
+    final bytes = await file.readAsBytes();
+    final base64Image = base64Encode(bytes);
+    return 'data:image/jpeg;base64,$base64Image';
+  }
+
+  Future<void> uploadLabResult(String reportId, {String? resultText, List<Map<String, dynamic>>? tableData, String? imageUrl}) async {
+    await _db.collection('lab_reports').doc(reportId).update({
+      'status': 'completed',
+      if (resultText != null) 'resultText': resultText,
+      if (tableData != null) 'tableData': tableData,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<void> linkLabReportsToRecord(String patientId, String recordId) async {
+    final querySnapshot = await _db
+        .collection('lab_reports')
+        .where('patientId', isEqualTo: patientId)
+        .where('status', isEqualTo: 'completed')
+        .get();
+
+    for (var doc in querySnapshot.docs) {
+      if (doc.data()['linkedRecordId'] == null) {
+        await doc.reference.update({'linkedRecordId': recordId});
+      }
+    }
+  }
+
+  Stream<List<LabReport>> getLabReportsForRecord(String recordId) {
+    return _db
+        .collection('lab_reports')
+        .where('linkedRecordId', isEqualTo: recordId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => LabReport.fromMap(doc.data(), doc.id)).toList());
+  }
 }
+

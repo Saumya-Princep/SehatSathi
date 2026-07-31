@@ -8,6 +8,7 @@ import 'screens/patient/patient_dashboard.dart';
 import 'screens/doctor/doctor_dashboard.dart';
 import 'screens/pharmacist/pharmacist_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
+import 'screens/lab/lab_dashboard.dart';
 import 'models/user_model.dart';
 
 import 'firebase_options.dart';
@@ -70,6 +71,8 @@ class InitialRouteHandler extends StatelessWidget {
               return const PharmacistDashboard();
             case UserRole.admin:
               return const AdminDashboard();
+            case UserRole.lab_technician:
+              return const LabDashboard();
           }
         }
         return const LoginScreen();

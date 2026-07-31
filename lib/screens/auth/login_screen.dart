@@ -67,6 +67,13 @@ class LoginScreen extends StatelessWidget {
                   icon: Icons.local_pharmacy,
                   role: UserRole.pharmacist,
                 ),
+                const SizedBox(height: 16),
+                _buildRoleCard(
+                  context,
+                  title: 'Lab Tech Portal',
+                  icon: Icons.science,
+                  role: UserRole.lab_technician,
+                ),
               ],
             ),
           ),

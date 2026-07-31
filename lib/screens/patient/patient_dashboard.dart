@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/patient_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../services/firestore_service.dart';
 import '../../models/medical_record.dart';
+import '../../models/lab_report.dart';
+
 import '../../models/health_advisory.dart';
 import '../../models/ambulance.dart';
 import '../../models/appointment.dart';
@@ -10,7 +14,9 @@ import 'medical_records_screen.dart';
 import '../../widgets/record_card.dart';
 import '../../widgets/health_advisory_carousel.dart';
 import '../../widgets/ambulance_tracking_card.dart';
+import '../../widgets/vitals_summary_widget.dart';
 import '../auth/login_screen.dart';
+import '../../models/vitals.dart';
 import 'package:geolocator/geolocator.dart';
 
 class PatientDashboard extends StatelessWidget {
@@ -28,24 +34,78 @@ class PatientDashboard extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('My EHR Dashboard'),
-          actions: [
-            Consumer<AuthProvider>(
-              builder: (context, auth, _) {
-                final isDark = auth.themeMode == ThemeMode.dark;
-                return IconButton(
-                  icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                  onPressed: () => auth.toggleTheme(!isDark),
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              onPressed: () {
-                authProvider.signOut();
-                Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-              },
-            ),
-          ],
+        ),
+        drawer: Drawer(
+          child: Column(
+            children: [
+              Consumer<AuthProvider>(
+                builder: (context, authProvider, _) {
+                  final user = authProvider.userModel;
+                  return UserAccountsDrawerHeader(
+                    accountName: Text(user?.name ?? 'Patient'),
+                    accountEmail: Text(user?.contact ?? 'Patient Portal'),
+                    currentAccountPicture: InkWell(
+                      onTap: () => authProvider.uploadProfilePicture(),
+                      child: CircleAvatar(
+                        backgroundColor: Colors.white,
+                        backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                        child: user?.profilePicUrl == null ? const Icon(Icons.person, size: 40, color: Colors.blue) : null,
+                      ),
+                    ),
+                  );
+                }
+              ),
+              Consumer<PatientProvider>(
+                builder: (context, provider, _) {
+                  return SwitchListTile(
+                    title: const Text('Offline View'),
+                    value: provider.isOffline,
+                    onChanged: (_) => provider.toggleOfflineMode(),
+                    secondary: const Icon(Icons.cloud_off),
+                  );
+                }
+              ),
+              Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  final isDark = auth.themeMode == ThemeMode.dark;
+                  return SwitchListTile(
+                    title: const Text('Dark Mode'),
+                    value: isDark,
+                    onChanged: (val) => auth.toggleTheme(val),
+                    secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                  );
+                },
+              ),
+              Consumer<PatientProvider>(
+                builder: (context, provider, _) {
+                  return ListTile(
+                    leading: const Icon(Icons.folder_shared),
+                    title: const Text('All Medical Records'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MedicalRecordsScreen(provider: provider),
+                        ),
+                      );
+                    },
+                  );
+                }
+              ),
+              const Spacer(),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.logout, color: Colors.red),
+                title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                onTap: () {
+                  authProvider.signOut();
+                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
         body: Consumer<PatientProvider>(
           builder: (context, provider, child) {
@@ -103,12 +163,30 @@ class PatientDashboard extends StatelessWidget {
                                   Text('Assigned to: ${apt.doctorName}', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontWeight: FontWeight.w600)),
                                 ],
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(Icons.cancel, color: Colors.redAccent),
-                                onPressed: () {
-                                  provider.cancelAppointment(apt.id);
-                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Left the doctor queue.')));
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.video_call, color: Colors.blue),
+                                    onPressed: () async {
+                                      final url = Uri.parse('https://wa.me/15551234567?text=Hello%20Dr.%20${Uri.encodeComponent(apt.doctorName)},%20I%20am%20ready%20for%20my%20teleconsultation.%20(Appointment%20ID:%20${apt.id})');
+                                      try {
+                                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                                      } catch (e) {
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp or Browser')));
+                                        }
+                                      }
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.cancel, color: Colors.redAccent),
+                                    onPressed: () {
+                                      provider.cancelAppointment(apt.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Left the doctor queue.')));
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
                           );
@@ -139,6 +217,36 @@ class PatientDashboard extends StatelessWidget {
                         },
                       ),
                     ),
+                  ),
+
+
+
+
+
+                  StreamBuilder<List<Vitals>>(
+                    stream: provider.vitalsStream,
+                    builder: (context, snapshot) {
+                      final vitals = snapshot.data ?? [];
+                      if (vitals.isEmpty) return const SizedBox.shrink();
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Card(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('My Recent Vitals', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                                const SizedBox(height: 16),
+                                VitalsSummaryWidget(vitalsList: vitals),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
 
                   Padding(
@@ -261,6 +369,8 @@ class PatientDashboard extends StatelessWidget {
       ),
     );
   }
+
+
 }
 
 class JoinQueueDialog extends StatefulWidget {
@@ -275,6 +385,7 @@ class JoinQueueDialog extends StatefulWidget {
 class _JoinQueueDialogState extends State<JoinQueueDialog> {
   final _reasonCtrl = TextEditingController();
   bool _isLoading = false;
+  List<Map<String, dynamic>>? _availableDoctors;
 
   @override
   Widget build(BuildContext context) {
@@ -282,47 +393,112 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
       title: const Text('Join Doctor Queue'),
       content: _isLoading 
         ? const SizedBox(height: 100, child: Center(child: CircularProgressIndicator(color: Colors.blue)))
-        : Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('What is your problem or symptom?', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('We will automatically assign you to the correct specialist.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _reasonCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'E.g. I have severe chest pain and palpitations', 
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-      actions: [
-        if (!_isLoading) TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        if (!_isLoading) ElevatedButton(
-          onPressed: () async {
-            if (_reasonCtrl.text.trim().isEmpty) return;
-            setState(() => _isLoading = true);
-            try {
-              final result = await widget.provider.joinDoctorQueue(widget.patientName, _reasonCtrl.text.trim());
-              if (mounted) {
-                Navigator.pop(context); // Close the entry dialog
-                _showSuccessDialog(context, result);
-              }
-            } catch (e) {
-              if (mounted) {
-                setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-              }
-            }
-          },
-          child: const Text('Join Queue'),
+        : _availableDoctors == null ? _buildIssueInput() : _buildDoctorList(),
+      actions: _isLoading ? [] : [
+        if (_availableDoctors != null)
+          TextButton(
+            onPressed: () => setState(() => _availableDoctors = null),
+            child: const Text('Back')
+          ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        if (_availableDoctors == null)
+          ElevatedButton(
+            onPressed: _findDoctors,
+            child: const Text('Find Doctors'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildIssueInput() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('What is your problem or symptom?', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        const Text('We will find the best specialists for your issue.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _reasonCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'E.g. I have severe chest pain and palpitations', 
+            border: OutlineInputBorder(),
+          ),
         ),
       ],
     );
+  }
+
+  Widget _buildDoctorList() {
+    if (_availableDoctors!.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Text('No doctors available at this time.'),
+      );
+    }
+    return SizedBox(
+      width: double.maxFinite,
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _availableDoctors!.length,
+        itemBuilder: (context, index) {
+          final doctor = _availableDoctors![index];
+          String docName = doctor['name'] ?? 'Unknown Doctor';
+          if (!docName.startsWith('Dr.')) docName = 'Dr. $docName';
+          return Card(
+            child: ListTile(
+              title: Text(docName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${doctor['specialty']}\n${doctor['queueCount']} patients in queue'),
+              trailing: ElevatedButton(
+                onPressed: () => _selectDoctor(doctor),
+                child: const Text('Select'),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _findDoctors() async {
+    if (_reasonCtrl.text.trim().isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final doctors = await widget.provider.getDoctorsForIssue(_reasonCtrl.text.trim());
+      if (mounted) {
+        setState(() {
+          _availableDoctors = doctors;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _selectDoctor(Map<String, dynamic> doctor) async {
+    setState(() => _isLoading = true);
+    try {
+      final result = await widget.provider.selectDoctorAndJoinQueue(
+        widget.patientName, 
+        _reasonCtrl.text.trim(),
+        doctor
+      );
+      if (mounted) {
+        Navigator.pop(context); // Close the entry dialog
+        _showSuccessDialog(context, result);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   void _showSuccessDialog(BuildContext context, Map<String, dynamic> result) {
@@ -360,3 +536,6 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
     );
   }
 }
+
+
+

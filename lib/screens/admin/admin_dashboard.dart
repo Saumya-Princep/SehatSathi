@@ -7,6 +7,8 @@ import '../../models/attendance.dart';
 import '../../models/user_model.dart';
 import '../../widgets/alert_banner.dart';
 import '../auth/login_screen.dart';
+import '../../models/health_advisory.dart';
+import '../../models/inventory_item.dart';
 
 class AdminDashboard extends StatelessWidget {
   const AdminDashboard({Key? key}) : super(key: key);
@@ -28,29 +30,56 @@ class AdminDashboard extends StatelessWidget {
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               tabs: [
-                Tab(icon: Icon(Icons.analytics), text: 'Epidemiology'),
+                Tab(icon: Icon(Icons.analytics), text: 'DHO Analytics'),
                 Tab(icon: Icon(Icons.people_alt), text: 'Staff & Alerts'),
                 Tab(icon: Icon(Icons.airport_shuttle), text: 'Ambulance'),
               ],
             ),
-            actions: [
-              Consumer<AuthProvider>(
-                builder: (context, auth, _) {
-                  final isDark = auth.themeMode == ThemeMode.dark;
-                  return IconButton(
-                    icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-                    onPressed: () => auth.toggleTheme(!isDark),
-                  );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.logout),
-                onPressed: () {
-                  authProvider.signOut();
-                  Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
-                },
-              ),
-            ],
+          ),
+          drawer: Drawer(
+            child: Column(
+              children: [
+                Consumer<AuthProvider>(
+                  builder: (context, authProvider, _) {
+                    final user = authProvider.userModel;
+                    return UserAccountsDrawerHeader(
+                      accountName: Text(user?.name ?? 'Admin'),
+                      accountEmail: Text(user?.contact ?? 'Admin Portal'),
+                      currentAccountPicture: InkWell(
+                        onTap: () => authProvider.uploadProfilePicture(),
+                        child: CircleAvatar(
+                          backgroundColor: Colors.white,
+                          backgroundImage: user?.profilePicUrl != null ? NetworkImage(user!.profilePicUrl!) : null,
+                          child: user?.profilePicUrl == null ? const Icon(Icons.admin_panel_settings, size: 40, color: Colors.blue) : null,
+                        ),
+                      ),
+                    );
+                  }
+                ),
+                Consumer<AuthProvider>(
+                  builder: (context, auth, _) {
+                    final isDark = auth.themeMode == ThemeMode.dark;
+                    return SwitchListTile(
+                      title: const Text('Dark Mode'),
+                      value: isDark,
+                      onChanged: (val) => auth.toggleTheme(val),
+                      secondary: Icon(isDark ? Icons.dark_mode : Icons.light_mode),
+                    );
+                  },
+                ),
+                const Spacer(),
+                const Divider(),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.red),
+                  title: const Text('Logout', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    authProvider.signOut();
+                    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginScreen()));
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
           body: Consumer<AdminProvider>(
             builder: (context, provider, child) {
@@ -87,6 +116,7 @@ class AdminDashboard extends StatelessWidget {
         ),
         _buildAnalyticsCard(context, provider),
         _buildEpidemiologyChartCard(context, provider),
+        _buildMedicineStockWarningsCard(context, provider),
       ],
     );
   }
@@ -218,6 +248,54 @@ class AdminDashboard extends StatelessWidget {
     );
   }
 
+  Widget _buildMedicineStockWarningsCard(BuildContext context, AdminProvider provider) {
+    return StreamBuilder<List<InventoryItem>>(
+      stream: provider.inventoryStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        
+        final inventory = snapshot.data ?? [];
+        final warnings = inventory.where((item) => item.currentStock <= item.thresholdLimit).toList();
+        
+        if (warnings.isEmpty) return const SizedBox.shrink();
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: Colors.orange.withOpacity(0.1),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                    SizedBox(width: 8),
+                    Text(
+                      'Critical Medicine Stock Warnings',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ...warnings.map((item) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(item.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text('${item.currentStock} left (Threshold: ${item.thresholdLimit})', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                )).toList(),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // ----------------------------------------------------
   // TAB 2: STAFF SHIFTS & HEALTH ADVISORY BROADCASTS
   // ----------------------------------------------------
@@ -239,6 +317,18 @@ class AdminDashboard extends StatelessWidget {
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        const Text(
+          'Active Health Advisories',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.redAccent),
+        ),
+        const SizedBox(height: 8),
+        _buildActiveAdvisoriesList(provider),
+        const SizedBox(height: 24),
+        const Text(
+          'Doctor Presence Control',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
         const SizedBox(height: 8),
         _buildDoctorsList(provider),
         const SizedBox(height: 24),
@@ -257,10 +347,63 @@ class AdminDashboard extends StatelessWidget {
             backgroundColor: Colors.blueAccent,
             foregroundColor: Colors.white,
           ),
-        )
+        ),
       ],
     );
   }
+
+  Widget _buildActiveAdvisoriesList(AdminProvider provider) {
+    return StreamBuilder<List<HealthAdvisory>>(
+      stream: provider.activeAdvisoriesStream,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        final advisories = snapshot.data ?? [];
+        if (advisories.isEmpty) {
+          return const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24.0),
+              child: Center(
+                child: Text('No active advisories.', style: TextStyle(color: Colors.grey)),
+              ),
+            ),
+          );
+        }
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: advisories.length,
+          itemBuilder: (context, index) {
+            final adv = advisories[index];
+            final color = adv.severity.toLowerCase() == 'critical'
+                ? Colors.redAccent
+                : (adv.severity.toLowerCase() == 'warning' ? Colors.orangeAccent : Colors.blue);
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: Icon(Icons.campaign, color: color),
+                title: Text(adv.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(adv.description, maxLines: 1, overflow: TextOverflow.ellipsis),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: 'Cancel Advisory',
+                  onPressed: () async {
+                    try {
+                      await provider.deleteAdvisory(adv.id);
+                    } catch (e) {
+                      debugPrint('Error deleting advisory: $e');
+                    }
+                  },
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   Widget _buildDoctorsList(AdminProvider provider) {
     return StreamBuilder<List<UserModel>>(

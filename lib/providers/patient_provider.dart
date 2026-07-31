@@ -5,7 +5,9 @@ import '../models/medical_record.dart';
 import '../models/ambulance.dart';
 import '../models/health_advisory.dart';
 import '../models/appointment.dart';
+import '../models/vitals.dart';
 import 'package:uuid/uuid.dart';
+import '../services/sync_manager.dart';
 
 class PatientProvider with ChangeNotifier {
   final FirestoreService _firestoreService = FirestoreService();
@@ -14,8 +16,23 @@ class PatientProvider with ChangeNotifier {
 
   PatientProvider({required this.patientId, required this.phcId});
 
+  bool get isOffline => FirestoreService.isOfflineSimulated;
+
+  void toggleOfflineMode() async {
+    FirestoreService.isOfflineSimulated = !FirestoreService.isOfflineSimulated;
+    notifyListeners();
+    
+    if (!FirestoreService.isOfflineSimulated) {
+      await SyncManager.instance.syncPendingData();
+    }
+  }
+
   Stream<List<MedicalRecord>> get medicalRecordsStream {
     return _firestoreService.getPatientRecords(patientId);
+  }
+
+  Stream<List<Vitals>> get vitalsStream {
+    return _firestoreService.getPatientVitals(patientId);
   }
 
   Stream<Ambulance?> get activeAmbulanceStream {
@@ -42,7 +59,7 @@ class PatientProvider with ChangeNotifier {
     await _firestoreService.cancelAppointment(appointmentId);
   }
 
-  Future<Map<String, dynamic>> joinDoctorQueue(String patientName, String reason) async {
+  Future<List<Map<String, dynamic>>> getDoctorsForIssue(String reason) async {
     // Check if patient is already in the queue for the exact same reason
     final activeAptsSnapshot = await _firestoreService.getPatientActiveAppointmentsOnce(patientId);
     for (var apt in activeAptsSnapshot) {
@@ -52,11 +69,10 @@ class PatientProvider with ChangeNotifier {
     }
 
     final specialty = TriageService.determineSpecialty(reason);
-    final doctor = await _firestoreService.assignDoctor(patientId, specialty);
-    if (doctor == null) {
-      throw Exception('No doctors available at this time.');
-    }
+    return await _firestoreService.getDoctorsBySpecialty(specialty);
+  }
 
+  Future<Map<String, dynamic>> selectDoctorAndJoinQueue(String patientName, String reason, Map<String, dynamic> doctor) async {
     final queueCount = await _firestoreService.getDoctorQueueCount(doctor['id']);
     final tokenNumber = queueCount + 1;
 
@@ -81,7 +97,7 @@ class PatientProvider with ChangeNotifier {
 
     return {
       'doctorName': docName,
-      'specialty': doctor['specialty'] ?? specialty,
+      'specialty': doctor['specialty'],
       'tokenNumber': tokenNumber,
     };
   }
