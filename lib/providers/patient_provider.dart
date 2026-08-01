@@ -59,7 +59,7 @@ class PatientProvider with ChangeNotifier {
     await _firestoreService.cancelAppointment(appointmentId);
   }
 
-  Future<Map<String, dynamic>> joinDoctorQueue(String patientName, String reason) async {
+  Future<List<Map<String, dynamic>>> getDoctorsForIssue(String reason) async {
     // Check if patient is already in the queue for the exact same reason
     final activeAptsSnapshot = await _firestoreService.getPatientActiveAppointmentsOnce(patientId);
     for (var apt in activeAptsSnapshot) {
@@ -69,11 +69,10 @@ class PatientProvider with ChangeNotifier {
     }
 
     final specialty = TriageService.determineSpecialty(reason);
-    final doctor = await _firestoreService.assignDoctor(patientId, specialty);
-    if (doctor == null) {
-      throw Exception('No doctors available at this time.');
-    }
+    return await _firestoreService.getDoctorsBySpecialty(specialty);
+  }
 
+  Future<Map<String, dynamic>> selectDoctorAndJoinQueue(String patientName, String reason, Map<String, dynamic> doctor) async {
     final queueCount = await _firestoreService.getDoctorQueueCount(doctor['id']);
     final tokenNumber = queueCount + 1;
 
@@ -98,7 +97,7 @@ class PatientProvider with ChangeNotifier {
 
     return {
       'doctorName': docName,
-      'specialty': doctor['specialty'] ?? specialty,
+      'specialty': doctor['specialty'],
       'tokenNumber': tokenNumber,
     };
   }

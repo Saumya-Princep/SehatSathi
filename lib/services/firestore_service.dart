@@ -58,6 +58,34 @@ class FirestoreService {
     }).toList();
   }
 
+  Future<List<Map<String, dynamic>>> getDoctorsBySpecialty(String specialty) async {
+    var query = await _db.collection('users')
+        .where('role', isEqualTo: 'doctor')
+        .where('specialty', isEqualTo: specialty)
+        .where('isPresent', isEqualTo: true)
+        .get();
+
+    if (query.docs.isEmpty) {
+      // Fallback: If no specialist is present, find any present doctor
+      query = await _db.collection('users')
+          .where('role', isEqualTo: 'doctor')
+          .where('isPresent', isEqualTo: true)
+          .get();
+    }
+    
+    List<Map<String, dynamic>> doctors = [];
+    for (var doc in query.docs) {
+      final qCount = await getDoctorQueueCount(doc.id);
+      doctors.add({
+        'id': doc.id,
+        'name': doc.data()['name'] ?? 'Unknown Doctor',
+        'specialty': doc.data()['specialty'] ?? specialty,
+        'queueCount': qCount,
+      });
+    }
+    return doctors;
+  }
+
   Future<Map<String, dynamic>?> assignDoctor(String patientId, String specialty) async {
     // 1. Check patient history for a previous doctor in this specialty who is present
     final pastRecordsQuery = await _db.collection('medical_records')

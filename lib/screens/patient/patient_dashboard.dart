@@ -385,6 +385,7 @@ class JoinQueueDialog extends StatefulWidget {
 class _JoinQueueDialogState extends State<JoinQueueDialog> {
   final _reasonCtrl = TextEditingController();
   bool _isLoading = false;
+  List<Map<String, dynamic>>? _availableDoctors;
 
   @override
   Widget build(BuildContext context) {
@@ -392,47 +393,112 @@ class _JoinQueueDialogState extends State<JoinQueueDialog> {
       title: const Text('Join Doctor Queue'),
       content: _isLoading 
         ? const SizedBox(height: 100, child: Center(child: CircularProgressIndicator(color: Colors.blue)))
-        : Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('What is your problem or symptom?', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('We will automatically assign you to the correct specialist.', style: TextStyle(color: Colors.grey, fontSize: 12)),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _reasonCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'E.g. I have severe chest pain and palpitations', 
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-      actions: [
-        if (!_isLoading) TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        if (!_isLoading) ElevatedButton(
-          onPressed: () async {
-            if (_reasonCtrl.text.trim().isEmpty) return;
-            setState(() => _isLoading = true);
-            try {
-              final result = await widget.provider.joinDoctorQueue(widget.patientName, _reasonCtrl.text.trim());
-              if (mounted) {
-                Navigator.pop(context); // Close the entry dialog
-                _showSuccessDialog(context, result);
-              }
-            } catch (e) {
-              if (mounted) {
-                setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-              }
-            }
-          },
-          child: const Text('Join Queue'),
+        : _availableDoctors == null ? _buildIssueInput() : _buildDoctorList(),
+      actions: _isLoading ? [] : [
+        if (_availableDoctors != null)
+          TextButton(
+            onPressed: () => setState(() => _availableDoctors = null),
+            child: const Text('Back')
+          ),
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        if (_availableDoctors == null)
+          ElevatedButton(
+            onPressed: _findDoctors,
+            child: const Text('Find Doctors'),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildIssueInput() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('What is your problem or symptom?', style: TextStyle(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        const Text('We will find the best specialists for your issue.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _reasonCtrl,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'E.g. I have severe chest pain and palpitations', 
+            border: OutlineInputBorder(),
+          ),
         ),
       ],
     );
+  }
+
+  Widget _buildDoctorList() {
+    if (_availableDoctors!.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.all(16.0),
+        child: Text('No doctors available at this time.'),
+      );
+    }
+    return SizedBox(
+      width: double.maxFinite,
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _availableDoctors!.length,
+        itemBuilder: (context, index) {
+          final doctor = _availableDoctors![index];
+          String docName = doctor['name'] ?? 'Unknown Doctor';
+          if (!docName.startsWith('Dr.')) docName = 'Dr. $docName';
+          return Card(
+            child: ListTile(
+              title: Text(docName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${doctor['specialty']}\n${doctor['queueCount']} patients in queue'),
+              trailing: ElevatedButton(
+                onPressed: () => _selectDoctor(doctor),
+                child: const Text('Select'),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _findDoctors() async {
+    if (_reasonCtrl.text.trim().isEmpty) return;
+    setState(() => _isLoading = true);
+    try {
+      final doctors = await widget.provider.getDoctorsForIssue(_reasonCtrl.text.trim());
+      if (mounted) {
+        setState(() {
+          _availableDoctors = doctors;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _selectDoctor(Map<String, dynamic> doctor) async {
+    setState(() => _isLoading = true);
+    try {
+      final result = await widget.provider.selectDoctorAndJoinQueue(
+        widget.patientName, 
+        _reasonCtrl.text.trim(),
+        doctor
+      );
+      if (mounted) {
+        Navigator.pop(context); // Close the entry dialog
+        _showSuccessDialog(context, result);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
   }
 
   void _showSuccessDialog(BuildContext context, Map<String, dynamic> result) {
